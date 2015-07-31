@@ -1,0 +1,180 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the build recipes for kernel build                                              ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-07-22  Initial  Adam  Initial version                                                                     ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+
+#
+# -- First, we need to identify our location
+#    ---------------------------------------
+KERN-DIR 		:= kernel
+
+
+#
+# -- Define some directories we need
+#    -------------------------------
+KERN-INCL-DIR	:= $(KERN-DIR)/include
+KERN-BIN-DIR	:= $(KERN-DIR)/bin
+KERN-OBJ-DIR	:= $(KERN-DIR)/obj
+KERN-DEP-DIR	:= $(KERN-DIR)/dep
+
+
+#
+# -- Define some local targets we will use
+#    -------------------------------------
+LOCAL-KERN		:= $(KERN-BIN-DIR)/kernel
+
+
+#
+# -- Collect the names of our source files and object files
+#    ------------------------------------------------------
+KERN-C-SRC 		:= $(wildcard $(KERN-DIR)/*.c)
+KERN-S-SRC 		:= $(wildcard $(KERN-DIR)/*.S)
+KERN-ARCH-C-SRC := $(wildcard $(KERN-DIR)/$(ARCH-DIR)/*.c)
+KERN-ARCH-S-SRC := $(wildcard $(KERN-DIR)/$(ARCH-DIR)/*.S)
+
+KERN-OBJ 		:= $(subst $(KERN-DIR)/,,$(KERN-C-SRC:.c=.o)) $(subst $(KERN-DIR)/,,$(KERN-S-SRC:.S=.o))	\
+					 $(subst $(KERN-DIR)/,,$(KERN-ARCH-C-SRC:.c=.o)) $(subst $(KERN-DIR)/,,$(KERN-ARCH-S-SRC:.S=.o))
+KERN-OBJ		:= $(addprefix $(KERN-OBJ-DIR)/,$(KERN-OBJ))
+
+KERN-LIBRARIES	:= -L$(SYSROOT-LIB) -lk
+
+
+#
+# -- Get the list of kernel include files to copy into the $(SYSROOT)
+#    ----------------------------------------------------------------
+KERN-INCLUDES 	:= $(addprefix $(SYSROOT-INCL)/,$(notdir $(wildcard $(KERN-INCL-DIR)/*.h)))
+
+
+#
+# -- Finally, we add to the list of targets that we need to build before mastering an .iso image
+#    -------------------------------------------------------------------------------------------
+INCLUDES 		+= $(KERN-INCLUDES)
+
+KERN-ALL-DIRS	:= $(KERN-BIN-DIR) $(KERN-OBJ-DIR)/$(ARCH-DIR) $(KERN-DEP-DIR)/$(ARCH-DIR)
+
+KERN-DEP 		:= $(sort $(subst $(KERN-DIR)/obj/,,$(KERN-OBJ)))
+KERN-DEP 		:= $(addprefix $(KERN-DEP-DIR)/,$(KERN-DEP:.o=.d))
+
+
+#
+# -- Include all the dependencies
+#    ----------------------------
+include $(KERN-DEP)
+
+
+#
+# -- This recipe will clean the build
+#    --------------------------------
+.PHONY: cleankernel
+cleankernel:
+	rm -Rf $(KERN-BIN-DIR)
+	rm -Rf $(KERN-OBJ-DIR)
+	rm -Rf $(KERN-DEP-DIR)
+
+
+#
+# -- This recipe will copy the target kernel into sysroot
+#    ----------------------------------------------------
+$(TARGET-KERNEL): $(LOCAL-KERN) $(GLOBAL)
+	echo "COPY    " $@
+	mkdir -p $(SYSROOT-ALL)
+	cp -f $< $@
+
+
+#
+# -- This recipe will build the local kernel
+#    ---------------------------------------
+$(LOCAL-KERN): $(KERN-OBJ) $(TARGET-LIBK) $(GLOBAL)
+	echo "LD      " $@
+	mkdir -p $(KERN-ALL-DIRS)
+	$(LD) $(LD-FLAGS) -o $@ $(KERN-OBJ) $(KERN-LIBRARIES)
+
+
+#
+# -- This recipe will build the kernel asm files to objects
+#    ------------------------------------------------------
+$(KERN-OBJ-DIR)/%.o: $(KERN-DIR)/%.S $(GLOBAL)
+	echo "ASM     " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(AS) $(AS-FLAGS) -o $@ $<
+
+
+#
+# -- This recipe will build the kernel arch-specificasm files to objects
+#    -------------------------------------------------------------------
+$(KERN-OBJ-DIR)/$(ARCH-DIR)/%.o: $(KERN-DIR)/$(ARCH-DIR)/%.S $(GLOBAL)
+	echo "ASM     " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(AS) $(AS-FLAGS) -o $@ $<
+
+
+#
+# -- This recipe will build the kernel C files to objects
+#    -----------------------------------------------------
+$(KERN-OBJ-DIR)/%.o: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
+	echo "CC      " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -o $@ $<
+
+
+#
+# -- This recipe will build the kernel arch-specific C files to objects
+#    ------------------------------------------------------------------
+$(KERN-OBJ-DIR)/$(ARCH-DIR)/%.o: $(KERN-DIR)/$(ARCH-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
+	echo "CC      " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -o $@ $<
+
+
+#
+# -- This recipe will build the kernel dependency files
+#    --------------------------------------------------
+$(KERN-DEP-DIR)/%.d: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
+	echo "DEPEND  " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/\1.d $(KERN-OBJ-DIR)/\1.o:@' > $@
+
+
+#
+# -- This recipe will build the kernel arch-specific ependency files
+#    ---------------------------------------------------------------
+$(KERN-DEP-DIR)/$(ARCH-DIR)/%.d: $(KERN-DIR)/$(ARCH-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
+	echo "DEPEND  " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/$(ARCH-DIR)/\1.d $(KERN-OBJ-DIR)/$(ARCH-DIR)/\1.o:@' > $@
+
+#
+# -- This recipe will build the kernel dependency files
+#    --------------------------------------------------
+$(KERN-DEP-DIR)/%.d: $(KERN-DIR)/%.S $(KERN-INCLUDES) $(GLOBAL)
+	echo "DEPEND  " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	touch $@
+
+
+#
+# -- This recipe will build the kernel arch-specific ependency files
+#    ---------------------------------------------------------------
+$(KERN-DEP-DIR)/$(ARCH-DIR)/%.d: $(KERN-DIR)/$(ARCH-DIR)/%.S $(KERN-INCLUDES) $(GLOBAL)
+	echo "DEPEND  " $<
+	mkdir -p $(KERN-ALL-DIRS)
+	touch $@
+#	echo $(AS) $(AS-FLAGS) -MM $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/$(ARCH-DIR)/\1.d $(KERN-OBJ-DIR)/$(ARCH-DIR)/\1.o:@' > $@
+
+
+#
+# -- This recipe will copy the include files to the sysroot
+#    ------------------------------------------------------
+$(SYSROOT-INCL)/%.h: $(KERN-INCL-DIR)/%.h $(GLOBAL)
+	echo "COPY    " $@
+	mkdir -p $(SYSROOT-ALL)
+	cp -f $< $@
+

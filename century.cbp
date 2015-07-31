@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="century" />
+		<Option makefile_is_custom="1" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<MakeCommands>
+			<Build command="$make -f $makefile $target" />
+			<CompileFile command="$make -f $makefile $file" />
+			<Clean command="$make -f $makefile clean" />
+			<DistClean command="$make -f $makefile distclean$target" />
+			<AskRebuildNeeded command="$make -q -f $makefile $target" />
+			<SilentBuild command="$make -f $makefile $target &gt; $(CMD_NULL)" />
+		</MakeCommands>
+		<Build>
+			<Target title="all">
+				<Option output="bin/Debug/century" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make --warn-undefined-variables -f $makefile $target" />
+					<CompileFile command="$make --warn-undefined-variables -f $makefile $file" />
+					<Clean command="$make -f $makefile clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make -q -f $makefile $target" />
+					<SilentBuild command="$make --warn-undefined-variables -f $makefile $target &gt; $(CMD_NULL)" />
+				</MakeCommands>
+			</Target>
+			<Target title="i686">
+				<Option output="bin/Debug/century" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-g" />
+				</Compiler>
+				<MakeCommands>
+					<Build command="$make -f $makefile host HOST=$target" />
+					<CompileFile command="$make -f $makefile $file" />
+					<Clean command="$make -f $makefile clean" />
+					<DistClean command="$make -f $makefile distclean$target" />
+					<AskRebuildNeeded command="$make -q -f $makefile host HOST=$target" />
+					<SilentBuild command="$make -f $makefile host HOST=$target &gt; $(CMD_NULL)" />
+				</MakeCommands>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-Wall" />
+		</Compiler>
+		<Unit filename=".gitignore" />
+		<Unit filename="dirs.mk" />
+		<Unit filename="kernel/Makefrag" />
+		<Unit filename="kernel/arch-i686/boot.S" />
+		<Unit filename="kernel/arch-i686/linker.ld" />
+		<Unit filename="kernel/arch-i686/text-cons-low.S" />
+		<Unit filename="kernel/arch-i686/text-cons.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kernel/gdt-idt.h" />
+		<Unit filename="kernel/kernel.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="kernel/text-cons.h" />
+		<Unit filename="libc/Makefrag" />
+		<Unit filename="libc/include/stdio.h" />
+		<Unit filename="libc/include/string.h" />
+		<Unit filename="libc/printf.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="libc/string.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="targets.mk" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>
