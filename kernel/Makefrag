@@ -7,6 +7,8 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-07-22  Initial  Adam  Initial version                                                                     ##
+##  2015-07-30  -------  Adam  Fixed an issue with the make clean command where it wanted to build the             ##
+##                             dependency files.                                                                   ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -67,7 +69,10 @@ KERN-DEP 		:= $(addprefix $(KERN-DEP-DIR)/,$(KERN-DEP:.o=.d))
 #
 # -- Include all the dependencies
 #    ----------------------------
+ifneq ($(MAKECMDGOALS),clean)
 include $(KERN-DEP)
+endif
+
 
 
 #

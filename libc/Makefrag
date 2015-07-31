@@ -10,6 +10,8 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-07-22  Initial  Adam  Initial version                                                                     ##
+##  2015-07-30  -------  Adam  Fixed an issue with the make clean command where it wanted to build the             ##
+##                             dependency files.                                                                   ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -98,7 +100,9 @@ LIBC-DEP 		:= $(addprefix $(LIBC-DEP-DIR)/,$(LIBC-DEP:.o=.d))
 #
 # -- Include all the dependencies
 #    ----------------------------
+ifneq ($(MAKECMDGOALS),clean)
 include $(LIBC-DEP)
+endif
 
 
 #
@@ -106,9 +110,9 @@ include $(LIBC-DEP)
 #    --------------------------------
 .PHONY: cleanlibc
 cleanlibc:
-	rm -Rf $(LIBC-OBJ-DIR)
-	rm -Rf $(LIBC-LIB-DIR)
 	rm -Rf $(LIBC-DEP-DIR)
+	rm -Rf $(LIBC-LIB-DIR)
+	rm -Rf $(LIBC-DIR)/obj
 
 #
 # -- This recipe will copy the target libc into sysroot
