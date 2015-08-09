@@ -28,18 +28,26 @@
 /*                                                                                           */
 /*    Date     Tracker  Pgmr  Description                                                    */
 /* ----------  ------   ----  -------------------------------------------------------------- */
-/* 2015/07/22  Initial  ADCL  Leveraged from osdev.org -- "Meaty Skeleton" wiki              */
+/* 2015-07-22  Initial  Adam  Leveraged from osdev.org -- "Meaty Skeleton" wiki              */
+/* 2015-08-03  -------  Adam  Reworked the sections to better align with my needs in the     */
+/*                            kernel                                                         */
 /*                                                                                           */
 /*===========================================================================================*/
+
 
 ENTRY (_start)
 OUTPUT_FORMAT(elf32-i386)
 
+Offset = 0x80000000;
+Kernel = 0x100000;
+Virtual = Kernel + Offset;
+
+
 SECTIONS
 {
-	. = 1M;
+	. = Virtual;
 
-	.text BLOCK(4K) : ALIGN (0x1000)
+	.text : AT(ADDR(.text) - Offset)
 	{
 	    *(.mbheader)
 		*(.code)
@@ -51,8 +59,21 @@ SECTIONS
 		*(.rodata)
 	}
 
+	.stab : {
+		*(.stab);
+		BYTE(0)		/* Force the linker to allocate space
+				   for this section */
+	}
+
+	.stabstr : {
+		*(.stabstr);
+		BYTE(0)		/* Force the linker to allocate space
+				   for this section */
+	}
+
 	.data BLOCK(4K) : ALIGN(4K)
 	{
+	    PROVIDE(data_start = .);
 		*(.data)
 	}
 
@@ -62,5 +83,15 @@ SECTIONS
 		*(.bss)
 	}
 
-    end = .; _end = .; __end = .;
+	/DISCARD/ : {
+		*(.eh_frame .note.GNU-stack)
+	}
+
+	. = ALIGN(4K);
+
+	PROVIDE(end = .);
 }
+
+
+
+

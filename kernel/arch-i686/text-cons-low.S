@@ -25,23 +25,17 @@
 #     Date     Tracker  Pgmr  Description
 #  ----------  -------  ----  --------------------------------------------------------------------------------------
 #  2015-07-24  Initial  Adam  This is the initial version.  It has been lifted from older code.
+#  2015-08-07  -------  Adam  Fix an issie related to poorly copying code.
 #
 # ===================================================================================================================
 
+#include            "arch.h"
 
 # *******************************************************************************************************************
 # Expose some labels for global functions
 # *******************************************************************************************************************
 	    .global		console_ScrollUp
 	    .global     console_SetCursor
-
-
-# *******************************************************************************************************************
-# Define some external labels that we need
-# *******************************************************************************************************************
-        .extern     CONSOLE_COLS
-        .extern     CONSOLE_ROWS
-        .extern     CONSOLE_MEMORY
 
 
 # *******************************************************************************************************************
@@ -63,12 +57,10 @@ console_ScrollUp:
 	                pushf	    						    # save flags
 	                cli 				                    # disable interrupts for a moment
 
-                    add             $(CONSOLE_MEMORY),%edi  # get the console memory buffer
-                    mov             %edi,%esi               # set the destination as well
-                    add             $(CONSOLE_ROWS),%esi    # adjust down one row
-                    mov             $(CONSOLE_ROWS),%eax    # get the number of rows
-                    mov             $(CONSOLE_COLS),%edx    # get the number of cols
-                    dec             %eax                    # we move 1 less row
+                    mov             $(CONSOLE_MEMORY),%edi  # get the console memory buffer (destination)
+                    mov             $(CONSOLE_MEMORY+(CONSOLE_COLS*2)),%esi     # set the source as well
+                    mov             $((CONSOLE_ROWS-1)*CONSOLE_COLS),%ecx       # set the number of words to move
+                    cld                                     # make sure we increment
                     rep             movsw                   # move the data
 
                     mov             $(CONSOLE_COLS),%ecx    # get the number of cols

@@ -25,10 +25,13 @@
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
 /* 2015-07-25  Initial  Adam  This is the initial version.  Portions are taken from some old recovered code.       */
+/* 2015-08-09  -------  Adam  Some cleanup where the mapping of the video memory is moved to higher-half and       */
+/*                            needs to be adjusted proeprly.                                                       */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
 #include "../text-cons.h"
+#include "arch.h"
 #include <stdarg.h>
 
 /*
@@ -38,11 +41,6 @@
 uint16_t _colPos = 0;
 uint16_t _rowPos = 0;
 uint8_t _consAttr = 0x07;
-
-const size_t CONSOLE_COLS = 80;
-const size_t CONSOLE_ROWS = 25;
-uint16_t *const CONSOLE_MEMORY =  (uint16_t *)0xb8000;
-
 
 /*
  * -- some local prototypes that will be written in the asm source
@@ -57,6 +55,8 @@ extern void console_ScrollUp(uint16_t blank);
 /*-----------------------------------------------------------------------------------------------------------------*/
 void console_PutChar(char c)
 {
+    uint16_t *buf = P2V(CONSOLE_MEMORY);
+
     if (c == '\n' || c == '\r') {
 newline:
 		_colPos = 0;
@@ -70,7 +70,7 @@ newline:
 		goto out;
 	}
 
-    CONSOLE_MEMORY[_colPos + _rowPos * CONSOLE_COLS] = MAKE_EGA_POS(c & 0xff, _consAttr);
+    buf[_colPos + _rowPos * CONSOLE_COLS] = MAKE_EGA_POS(c & 0xff, _consAttr);
 
 	_colPos ++;
 
@@ -97,6 +97,7 @@ void console_WriteString(const char *s)
 /*-----------------------------------------------------------------------------------------------------------------*/
 void console_Cls(void)
 {
+    uint16_t *buf = P2V(CONSOLE_MEMORY);
     uint32_t i;
 
     _colPos = 0;
@@ -104,7 +105,7 @@ void console_Cls(void)
     console_SetCursor(_rowPos, _colPos);
 
     for (i = 0; i < CONSOLE_COLS * CONSOLE_ROWS; i ++) {
-        CONSOLE_MEMORY[i] = MAKE_EGA_POS(' ' & 0xff, _consAttr);
+        buf[i] = MAKE_EGA_POS(' ' & 0xff, _consAttr);
     }
 }
 
@@ -119,7 +120,7 @@ void console_Init(void)
     _consAttr = 0x07;
     console_SetCursor(_rowPos, _colPos);
 
-    console_Cls();
+//    console_Cls();
 }
 
 

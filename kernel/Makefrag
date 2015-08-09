@@ -9,6 +9,10 @@
 ##  2015-07-22  Initial  Adam  Initial version                                                                     ##
 ##  2015-07-30  -------  Adam  Fixed an issue with the make clean command where it wanted to build the             ##
 ##                             dependency files.                                                                   ##
+##  2015-07-30  -------  Adam  Fixed that the linker was not referencing the linker.ld file, resulting in a        ##
+##                             kernel binary that could not be run.  Added an include path for the arch-specific   ##
+##                             include files.  Finally, since the assembler would not properly produce a           ##
+##                             dependency file without locking up, simply hard coded the assembly dependencies     ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -32,6 +36,7 @@ KERN-DEP-DIR	:= $(KERN-DIR)/dep
 # -- Define some local targets we will use
 #    -------------------------------------
 LOCAL-KERN		:= $(KERN-BIN-DIR)/kernel
+LOCAL-KERN-LD	:= $(KERN-DIR)/$(ARCH-DIR)/linker.ld
 
 
 #
@@ -97,10 +102,10 @@ $(TARGET-KERNEL): $(LOCAL-KERN) $(GLOBAL)
 #
 # -- This recipe will build the local kernel
 #    ---------------------------------------
-$(LOCAL-KERN): $(KERN-OBJ) $(TARGET-LIBK) $(GLOBAL)
+$(LOCAL-KERN): $(KERN-OBJ) $(TARGET-LIBK) $(LOCAL-KERN-LD) $(GLOBAL)
 	echo "LD      " $@
 	mkdir -p $(KERN-ALL-DIRS)
-	$(LD) $(LD-FLAGS) -o $@ $(KERN-OBJ) $(KERN-LIBRARIES)
+	$(LD) $(LD-FLAGS) -T $(LOCAL-KERN-LD) -o $@ $(KERN-OBJ) $(KERN-LIBRARIES)
 
 
 #
@@ -127,7 +132,7 @@ $(KERN-OBJ-DIR)/$(ARCH-DIR)/%.o: $(KERN-DIR)/$(ARCH-DIR)/%.S $(GLOBAL)
 $(KERN-OBJ-DIR)/%.o: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 	echo "CC      " $<
 	mkdir -p $(KERN-ALL-DIRS)
-	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -o $@ $<
+	$(CC) $(CC-FLAGS) -I$(KERN-DIR) -I$(KERN-DIR)/$(ARCH-DIR) -o $@ $<
 
 
 #
@@ -136,7 +141,7 @@ $(KERN-OBJ-DIR)/%.o: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 $(KERN-OBJ-DIR)/$(ARCH-DIR)/%.o: $(KERN-DIR)/$(ARCH-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 	echo "CC      " $<
 	mkdir -p $(KERN-ALL-DIRS)
-	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -o $@ $<
+	$(CC) $(CC-FLAGS) -I$(KERN-DIR) -I$(KERN-DIR)/$(ARCH-DIR) -o $@ $<
 
 
 #
@@ -145,7 +150,7 @@ $(KERN-OBJ-DIR)/$(ARCH-DIR)/%.o: $(KERN-DIR)/$(ARCH-DIR)/%.c $(KERN-INCLUDES) $(
 $(KERN-DEP-DIR)/%.d: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 	echo "DEPEND  " $<
 	mkdir -p $(KERN-ALL-DIRS)
-	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/\1.d $(KERN-OBJ-DIR)/\1.o:@' > $@
+	$(CC) $(CC-FLAGS) -I$(KERN-DIR) -I$(KERN-DIR)/$(ARCH-DIR) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/\1.d $(KERN-OBJ-DIR)/\1.o:@' > $@
 
 
 #
@@ -154,7 +159,7 @@ $(KERN-DEP-DIR)/%.d: $(KERN-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 $(KERN-DEP-DIR)/$(ARCH-DIR)/%.d: $(KERN-DIR)/$(ARCH-DIR)/%.c $(KERN-INCLUDES) $(GLOBAL)
 	echo "DEPEND  " $<
 	mkdir -p $(KERN-ALL-DIRS)
-	$(CC) $(CC-FLAGS) -I$(SYSROOT-INCL) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/$(ARCH-DIR)/\1.d $(KERN-OBJ-DIR)/$(ARCH-DIR)/\1.o:@' > $@
+	$(CC) $(CC-FLAGS) -I$(KERN-DIR) -I$(KERN-DIR)/$(ARCH-DIR) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/$(ARCH-DIR)/\1.d $(KERN-OBJ-DIR)/$(ARCH-DIR)/\1.o:@' > $@
 
 #
 # -- This recipe will build the kernel dependency files
@@ -172,7 +177,6 @@ $(KERN-DEP-DIR)/$(ARCH-DIR)/%.d: $(KERN-DIR)/$(ARCH-DIR)/%.S $(KERN-INCLUDES) $(
 	echo "DEPEND  " $<
 	mkdir -p $(KERN-ALL-DIRS)
 	touch $@
-#	echo $(AS) $(AS-FLAGS) -MM $< | sed -e 's@^\(.*\)\.o:@$(KERN-DEP-DIR)/$(ARCH-DIR)/\1.d $(KERN-OBJ-DIR)/$(ARCH-DIR)/\1.o:@' > $@
 
 
 #
@@ -183,3 +187,9 @@ $(SYSROOT-INCL)/%.h: $(KERN-INCL-DIR)/%.h $(GLOBAL)
 	mkdir -p $(SYSROOT-ALL)
 	cp -f $< $@
 
+
+#
+# -- Here are some very specific dependencies to include
+#    ---------------------------------------------------
+kernel/obj/arch-i686/boot.o: kernel/arch-i686/arch.h
+kernel/obj/arch-i686/text-cons-low.S: kernel/arch-i686/arch.h

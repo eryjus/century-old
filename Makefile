@@ -12,6 +12,8 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-07-19  Initial  Adam  Initial version                                                                     ##
+##  2015-08-01  -------  Adam  Chagned the assembler to gcc in order to allow the C preprocessor to process the    ##
+##                             include files.  Also changed the linker options to ensure a freestanding target.    ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -42,7 +44,7 @@ INCLUDES :=
 #    --------------------------
 #
 CC := $(ARCH)-elf-gcc
-AS := $(ARCH)-elf-as
+AS := $(ARCH)-elf-gcc
 AR := $(ARCH)-elf-ar
 LD := $(ARCH)-elf-gcc
 
@@ -52,9 +54,9 @@ LD := $(ARCH)-elf-gcc
 #    -----------------------
 #
 CC-FLAGS := -c -O2 -g -ffreestanding -Wall -Wextra -I$(SYSROOT-INCL) -isystem=$(SYS-INCL)
-AS-FLAGS := -g
+AS-FLAGS := -g -c -D__ASSEMBLER__
 AR-FLAGS := rcs
-LD-FLAGS := -nostdlib
+LD-FLAGS := -nostdlib -ffreestanding
 
 
 

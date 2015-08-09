@@ -1,9 +1,6 @@
 /* =============================================================================================================== */
 /*                                                                                                                 */
-/* text-cons.h -- This file contains the prototypes for a standard text console interface                          */
-/*                                                                                                                 */
-/* This file is a Century-specific version of the C standard library for the string manipulation functions.  It    */
-/* is a watered down version for this stage of development.                                                        */
+/* alloc.c -- This file contains the functions to allocate memory for the VMM at a page level                      */
 /*                                                                                                                 */
 /*      Century is a Hobby Operating System.                                                                       */
 /*      Copyright (C) 2014, 2015  Adam Scott Clark                                                                 */
@@ -21,55 +18,34 @@
 /*      You should have received a copy of the GNU General Public License along                                    */
 /*      with this program.  If not, see http://www.gnu.org/licenses/gpl-3.0-standalone.html.                       */
 /*                                                                                                                 */
-/*      ----------------------------------------------------------------------------------------------             */
-/*                                                                                                                 */
-/*      Portions of this source are licensed under CC0 licensing.  Please see the comments below for               */
-/*      the source of the code.  Please see https://creativecommons.org/publicdomain/zero/1.0/legalcode            */
-/*      for the details of the CC0 license.                                                                        */
-/*                                                                                                                 */
 /* --------------------------------------------------------------------------------------------------------------- */
 /*                                                                                                                 */
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
-/* 2015-07-22  Initial  Adam  This is the initial version.  Portions of this file has been lifted from             */
-/*                            OSDev.org's Meaty Skeleton wiki and are released under CC0 licensing.  See           */
-/*                            http://wiki.osdev.org/Meaty_Skeleton & http://wiki.osdev.org/OSDev_Wiki:Copyrights   */
-/*                            for details.                                                                         */
-/* 2015-08-07  -------  Adam  Fix an issie related to poorly copying code.                                         */
+/* 2015-08-01  Initial  Adam  This is the initial version; which will be in flux for some time.                    */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
-#ifndef __TEXT_CONS_H__
-#define __TEXT_CONS_H__
+#include "arch.h"
+#include "kern-defs.h"
 
-#include <stdint.h>
-#include <stddef.h>
+#include <string.h>
 
-enum EgaColor {
-    EGA_BLACK = 0,
-    EGA_BLUE = 1,
-    EGA_GREEN = 2,
-    EGA_CYAN = 3,
-	EGA_RED = 4,
-	EGA_MAGENTA = 5,
-	EGA_BROWN = 6,
-	EGA_LIGHT_GREY = 7,
-	EGA_DARK_GREY = 8,
-	EGA_LIGHT_BLUE = 9,
-	EGA_LIGHT_GREEN = 10,
-	EGA_LIGHT_CYAN = 11,
-	EGA_LIGHT_RED = 12,
-	EGA_LIGHT_MAGENTA = 13,
-	EGA_LIGHT_BROWN = 14,
-	EGA_WHITE = 15,
-};
+char *newEnd = 0;           // This will track the memory used during startup
 
-#define MAKE_COLOR(f,b) ((uint8_t)((f) | (b << 4)))
-#define MAKE_EGA_POS(c,a) ((uint16_t)((c) | (a << 8)))
+//
+// -- This function is only used during startup to allocate memory before we have a proper memory manager
+//    up and running.  It assumes that all memory will be allocated from the end of the .bss section up
+//    and will be less than 4MB (which is the size of the single page that is mapped).
+//    ---------------------------------------------------------------------------------------------------
+char *AllocAtEntry(void)
+{
+    if (newEnd == 0) newEnd = end;
+    if ((unsigned int)newEnd >= KERN_BASE + 0x400000) panic("Out of memory: only 4MB is mapped at startup");
 
-void console_Init(void);
-void console_Cls(void);
-void console_PutChar(char c);
-void console_WriteString(const char *s);
+    void *p = (void *)PAGE_ROUNDUP((unsigned int)newEnd);
+    memset(p, 0, PAGE_SIZE);
+    newEnd = (char *)p + PAGE_SIZE;
 
-#endif
+    return p;
+}
