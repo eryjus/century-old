@@ -25,6 +25,8 @@
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
 /* 2015-08-02  Initial  Adam  This is the initial version.  Portions inspired by xv6.                              */
+/* 2015-08-13  -------  Adam  Added the architecture-specific code to detect the number of processors and collect  */
+/*                            that data in internal structures.                                                    */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
@@ -33,9 +35,19 @@
 
 #include "arch.h"
 #include "../kern-defs.h"
+#include "../process.h"
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
+
+
+//===================================================================================================================
+//
+// == This section contains the Architecture-Specific functions for the virtual memory implementation.
+//
+//===================================================================================================================
+
 
 //
 // -- This table will be used to setup the bootstrap page tables.  This will be very temporaty and will be replaced
@@ -181,4 +193,152 @@ void VMMInit(void)
 {
     kernPageDir = SetupKernVM(AllocAtEntry);
     SwitchKernPageDir();
+}
+
+
+//===================================================================================================================
+//
+// == This section contains the Architecture-Specific functions for MultiProcessor Specification.
+//
+//===================================================================================================================
+
+
+
+struct Cpu cpus[NCPUS];
+static struct Cpu *bcpu;
+bool isMP = false;
+int nCPU;
+uint8_t ioapicID;
+volatile unsigned int *lapic;
+static struct MPFloatingPointer *fltTable;
+
+//
+// -- This function will execute the sanity checks to ensure that we have a good Floating Pointer table and
+//    subordinate Config table.
+//    -----------------------------------------------------------------------------------------------------
+static bool SanityCheckMPPtr(struct MPFloatingPointer *mpPtr)
+{
+    uint8_t sum = 0, *wrk = (uint8_t *)mpPtr;
+    int len = sizeof(struct MPFloatingPointer);
+    struct MPConfig *ptr;
+
+    while (len > 0) sum += wrk[-- len];
+    if (sum) return false;
+    if (*((uint32_t *)p2v((unsigned int)mpPtr->physAddr)) != *((uint32_t *)"PCMP")) return false;
+
+    ptr = p2v((unsigned int)mpPtr->physAddr);
+    if (ptr->version != 1 && ptr->version != 4) return false;
+
+    return true;
+}
+
+
+//
+// -- This function will search a block of memory for the _MP_ MultiProcessor signature and if found, do some
+//    extended checking for the proper signature and checksum.
+//    -------------------------------------------------------------------------------------------------------
+static struct MPConfig *SearchForConfigTable(uint8_t *start, unsigned int length)
+{
+    for (; length > 0; start += 16, length -= 16) {
+        if (*((uint32_t *)start) == *((uint32_t *)"_MP_") && SanityCheckMPPtr((struct MPFloatingPointer *)start)) {
+            struct MPFloatingPointer *wrk = (struct MPFloatingPointer *)start;
+            fltTable = wrk;
+            return (struct MPConfig *)p2v((unsigned int)wrk->physAddr);
+        }
+    }
+
+    return 0;
+}
+
+
+//
+// -- This function will search all the known locations for the MultiProcessor Configuration table.  It may
+//    be located in one of 3 places, which are searched in order:
+//    1.  The first 1K of the Extended BIOS Data Area
+//    2.  The last 1K of the low memory (memory before 640K)
+//    3.  The address range from 0xf0000 to 0xfffff
+//    -----------------------------------------------------------------------------------------------------
+static struct MPConfig *FindConfigTable(void)
+{
+    struct MPConfig *cfgTable;
+    uint8_t *bda = p2v(0x400);
+
+    cfgTable = SearchForConfigTable(p2v((bda[0x0f] << 8 | bda[0x0e]) << 4), 1024);
+    if (!cfgTable) cfgTable = SearchForConfigTable(p2v((bda[0x14] << 8 | bda[0x13]) * 1024) - 1024, 1024);
+    if (!cfgTable) cfgTable = SearchForConfigTable(p2v(0xf0000), 0x10000);
+    if (!cfgTable) return 0;
+
+    return cfgTable;
+}
+
+
+//
+// -- Initialize the multiprocessor configuration
+//    -------------------------------------------
+void MultiProcessorInit(void)
+{
+    struct MPConfig *cfgTable = FindConfigTable();
+    uint8_t *ptr, *end;
+    struct MPProcessor *proc;
+    struct MPIoapic *ioapic;
+
+    bcpu = &cpus[0];                    // set a default boot cpu
+
+    if (!cfgTable) goto NoMP;
+
+    isMP = true;
+    lapic = cfgTable->lapicAddr;
+    ptr = ((uint8_t *)cfgTable) + sizeof(struct MPConfig);
+    end = ((uint8_t *)cfgTable) + cfgTable->length;
+
+    while (ptr < end) {
+        switch (*ptr) {
+        case MP_PROC:
+            proc = (struct MPProcessor *)ptr;
+
+            if (nCPU != proc->apicId) {
+                printf("MultiProcessor Specification: ncpu=%d; apicid=%d\n", nCPU, proc->apicId);
+                isMP = false;
+                goto NoMP;
+            }
+
+            if (proc->flags & MPP_BOOT) bcpu = &cpus[nCPU];
+
+            cpus[nCPU].id = nCPU;
+            nCPU ++;
+            ptr += sizeof(struct MPProcessor);
+            break;
+
+        case MP_IOAPIC:
+            ioapic = (struct MPIoapic *)ptr;
+            ioapicID = ioapic->apicNo;
+            ptr += sizeof(struct MPIoapic);
+            break;
+
+        case MP_BUS:
+        case MP_IOINTR:
+        case MP_LINTR:
+            ptr += 8;
+            break;
+
+        default:
+            printf("Unknown MP specification %d @ %p\n", *ptr, ptr);
+            isMP = false;
+            goto NoMP;
+        }
+    }
+
+    if (!isMP) {
+NoMP:                   // Something went wrong, so assume we are just a single processor
+        nCPU = 1;
+        lapic = 0;
+        ioapicID = 0;
+
+        return;
+    }
+
+    if (fltTable->imcrp) {
+        outb(0x22, 0x70);                   // Select IMCR
+        outb(0x23, inb(0x23) | 1);          // Mask external interrupts.
+    }
 }

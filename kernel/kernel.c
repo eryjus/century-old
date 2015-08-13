@@ -23,6 +23,7 @@
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
 /* 2015-08-01  Initial  Adam  This is the initial version; which will be in flux for some time.                    */
+/* 2015-08-13  -------  Adam  Completed initialization step #5 -- Determine basic machine information              */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
@@ -34,6 +35,7 @@
 void kMain(void)
 {
     VMMInit();
+    MultiProcessorInit();
 
     printf("kMain()\n");
     hang();

@@ -45,6 +45,7 @@
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
 /* 2015-07-31  Initial  Adam  This is the initial version.  Portions inspired by xv6.                              */
+/* 2015-08-13  -------  Adam  Added the architecture-specific structures used to store info about processors       */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
@@ -131,7 +132,7 @@
 //
 // -- segment descriptor
 //    ------------------
-struct seg_desc {
+struct SegmentDescriptor {
     unsigned int limit_15_0 : 16;           // the low 16 bits os the segment limit
     unsigned int base_15_0 : 16;            // the low 16 bits of the base address
     unsigned int base_23_16 : 8;            // middle 8 bits of hte seg base address
@@ -146,6 +147,8 @@ struct seg_desc {
 
 typedef uint32_t pte_t;
 typedef uint32_t pde_t;
+
+extern volatile unsigned int *lapic;
 
 #endif
 
@@ -199,6 +202,126 @@ extern char data_start[];
 
 void lcr3(unsigned int);
 unsigned int rcr3(void);
+
+#endif
+
+
+#ifndef __ASSEMBLER__
+struct TaskState {
+    unsigned int link;               // Old ts selector
+    unsigned int esp0;               // Stack pointers and segment selectors
+    uint16_t ss0;              // after an increase in privilege level
+    uint16_t padding1;
+    unsigned int *esp1;
+    uint16_t ss1;
+    uint16_t padding2;
+    unsigned int *esp2;
+    uint16_t ss2;
+    uint16_t padding3;
+    void *cr3;               // Page directory base
+    unsigned int *eip;               // Saved state from last task switch
+    unsigned int eflags;
+    unsigned int eax;                // More saved state (registers)
+    unsigned int ecx;
+    unsigned int edx;
+    unsigned int ebx;
+    unsigned int *esp;
+    unsigned int *ebp;
+    unsigned int esi;
+    unsigned int edi;
+    uint16_t es;               // Even more saved state (segment selectors)
+    uint16_t padding4;
+    uint16_t cs;
+    uint16_t padding5;
+    uint16_t ss;
+    uint16_t padding6;
+    uint16_t ds;
+    uint16_t padding7;
+    uint16_t fs;
+    uint16_t padding8;
+    uint16_t gs;
+    uint16_t padding9;
+    uint16_t ldt;
+    uint16_t padding10;
+    uint16_t t;                // Trap on task switch
+    uint16_t iomb;             // I/O map base address
+};
+
+#endif
+
+
+//
+// -- The following section is from the Multiprocessor Specification (v1.4).  This specification
+//    can be found at http://developer.intel.com/design/pentium/datashts/24201606.pdf.
+//    ------------------------------------------------------------------------------------------
+
+#ifndef __ASSEMBLER__
+
+//
+// -- This structure contains a physical address pointer to the MP configuration table and other MP feature
+//    information bytes.  When present, this structure indicates that the system conforms to the MP specification.
+//    This structure must be stored in at least one of the following memory locations, because the operating system
+//    searches for the MP floating pointer structure in the order described below:
+//    a.   In the first kilobyte of Extended BIOS Data Area (EBDA), or
+//    b.   Within the last kilobyte of system base memory (e.g., 639K-640K for systems with 640KB of base memory or
+//         511K-512K for systems with 512 KB of base memory) if the EBDA segment is undefined, or
+//    c.   In the BIOS ROM address space between 0F0000h and 0FFFFFh.
+//    -------------------------------------------------------------------------------------------------------------
+struct MPFloatingPointer {                  // FLoating Pointer Structure
+    uint8_t signature[4];                   // contains "_MP_"
+    void *physAddr;                         // phys addr of MP config table
+    uint8_t length;                         // length in 16-byte blocks, which is exactly 1
+    uint8_t specRev;                        // revision level, which should be [14]
+    uint8_t checkSum;                       // all bytes must add up to 0
+    uint8_t type;                           // MP system config type
+    uint8_t imcrp;                          // Bit 7 indicates that IMCRP is present (PIC mode implemented)
+    uint8_t reserved[3];                    // Reserved, but should be taken into account when checking the checksum
+};
+
+
+struct MPConfig {                           // configuration table header
+    uint8_t signature[4];                   // "PCMP"
+    uint16_t length;                        // total table length
+    uint8_t version;                        // [14]
+    uint8_t checkSum;                       // all bytes must add up to 0
+    uint8_t product[20];                    // product id
+    unsigned int *oemTable;                 // OEM table pointer
+    uint16_t oemLength;                     // OEM table length
+    uint16_t entry;                         // entry count
+    unsigned int *lapicAddr;                // address of local APIC
+    uint16_t xLength;                       // extended table length
+    uint8_t xCheckSum;                      // extended table checksum
+    uint8_t reserved;                       // Reserved, but should be taken into account when checking the checksum
+};
+
+
+struct MPProcessor {                        // processor table entry
+    uint8_t type;                           // entry type (0)
+    uint8_t apicId;                         // local APIC id
+    uint8_t version;                        // local APIC verison
+    uint8_t flags;                          // CPU flags
+    uint8_t signature[4];                   // CPU signature
+    unsigned int feature;                       // feature flags from CPUID instruction
+    uint8_t reserved[8];                    // Reserved, but should be taken into account when checking the checksum
+};
+
+#define MPP_BOOT 0x02                       // This cpu is the bootstrap processor.
+
+
+struct MPIoapic {                           // I/O APIC table entry
+    uint8_t type;                           // entry type (2)
+    uint8_t apicNo;                         // I/O APIC id
+    uint8_t version;                        // I/O APIC version
+    uint8_t flags;                          // I/O APIC flags
+    unsigned int *addr;                     // I/O APIC address
+};
+
+
+#define MP_PROC         0x00                // One per processor
+#define MP_BUS          0x01                // One per bus
+#define MP_IOAPIC       0x02                // One per I/O APIC
+#define MP_IOINTR       0x03                // One per bus interrupt source
+#define MP_LINTR        0x04                // One per system interrupt source
 
 #endif
 

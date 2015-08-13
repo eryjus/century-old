@@ -23,14 +23,20 @@
 /*    Date     Tracker  Pgmr  Description                                                                          */
 /* ----------  -------  ----  -----------------------------------------------------------------------------------  */
 /* 2015-08-02  Initial  Adam  This is the initial version.                                                         */
+/* 2015-08-13  -------  Adam  Added some additional constants used to statically configure the system              */
 /*                                                                                                                 */
 /* =============================================================================================================== */
 
-#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+#define NCPUS           8               // this is the maximum number of CPUs we will support
+#define NSEGS           7               // this is the number of segments we have for each process
+
+#define NELEM(x)        (sizeof(x)/sizeof((x)[0]))
 
 // architecture-specific prototypes
 // --------------------------------
 void VMMInit(void);
+void MultiProcessorInit(void);
 
 
 

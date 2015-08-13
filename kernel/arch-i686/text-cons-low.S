@@ -26,6 +26,7 @@
 #  ----------  -------  ----  --------------------------------------------------------------------------------------
 #  2015-07-24  Initial  Adam  This is the initial version.  It has been lifted from older code.
 #  2015-08-07  -------  Adam  Fix an issie related to poorly copying code.
+#  2015-08-13  -------  Adam  Resolved another issue related to virtual memory and the screen buffer.
 #
 # ===================================================================================================================
 
@@ -57,8 +58,8 @@ console_ScrollUp:
 	                pushf	    						    # save flags
 	                cli 				                    # disable interrupts for a moment
 
-                    mov             $(CONSOLE_MEMORY),%edi  # get the console memory buffer (destination)
-                    mov             $(CONSOLE_MEMORY+(CONSOLE_COLS*2)),%esi     # set the source as well
+                    mov             $(P2V(CONSOLE_MEMORY)),%edi  # get the console memory buffer (destination)
+                    mov             $(P2V(CONSOLE_MEMORY)+(CONSOLE_COLS*2)),%esi     # set the source as well
                     mov             $((CONSOLE_ROWS-1)*CONSOLE_COLS),%ecx       # set the number of words to move
                     cld                                     # make sure we increment
                     rep             movsw                   # move the data
