@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the forktest user program                           ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #16    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+FORKTEST-PREFIX		:= src/forktest
+FORKTEST-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(FORKTEST-PREFIX)/*.c)))
+FORKTEST-OBJ 			:= $(addprefix $(FORKTEST-PREFIX)/obj/,$(FORKTEST-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _forktest
+DEPEND-FILES		+= $(subst .o,.d,$(FORKTEST-OBJ))
+
+
+#
+# -- This is the main target for the forktest pogram
+#    -----------------------------------------------------------------------------------------------------------
+_forktest: $(FORKTEST-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(FORKTEST-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o _forktest $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(FORKTEST-PREFIX)/obj/%.o: $(FORKTEST-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(FORKTEST-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(FORKTEST-PREFIX)/obj/%.d: $(FORKTEST-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(FORKTEST-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(FORKTEST-PREFIX)/obj/\1.d $(FORKTEST-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-forktest
+clean-forktest:
+	@rm -fR $(FORKTEST-PREFIX)/obj
+	@rm -fR $(FORKTEST-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-forktest
+disp-vars-forktest:
+	@echo "FORKTEST-OBJ      =" $(FORKTEST-OBJ)

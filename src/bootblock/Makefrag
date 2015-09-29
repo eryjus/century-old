@@ -1,0 +1,86 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the boot block                                      ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-30    #33    Adam  Initial version.                                                                    ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+BOOTBLOCK-PREFIX	:= src/bootblock
+BOOTBLOCK-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(BOOTBLOCK-PREFIX)/*.c))) \
+							$(notdir $(subst .S,.o,$(wildcard $(BOOTBLOCK-PREFIX)/*.S)))
+BOOTBLOCK-OBJ 		:= $(addprefix $(BOOTBLOCK-PREFIX)/obj/,$(BOOTBLOCK-OBJ))
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+DEPEND-FILES		+= $(subst .o,.d,$(BOOTBLOCK-OBJ))
+
+
+#
+# -- This is the main target for the boot block
+#    ------------------------------------------
+bootblock: $(BOOTBLOCK-PREFIX)/bootasm.S $(BOOTBLOCK-PREFIX)/bootmain.c
+	@mkdir -p $(BOOTBLOCK-PREFIX)/obj
+
+	@echo "CC    : bootmain.c"
+	@$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -o $(BOOTBLOCK-PREFIX)/obj/bootmain.o -c $(BOOTBLOCK-PREFIX)/bootmain.c
+
+	@echo "ASM   : bootasm.S"
+	@$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -o $(BOOTBLOCK-PREFIX)/obj/bootasm.o -c $(BOOTBLOCK-PREFIX)/bootasm.S
+
+	@echo "LINK  : bootblock"
+	@$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o $(BOOTBLOCK-PREFIX)/obj/bootasm.o $(BOOTBLOCK-PREFIX)/obj/bootmain.o
+
+	@echo "DISASM: bootblock"
+	@$(OBJDUMP) -S bootblock.o > bootblock.asm
+
+	@echo "STRIP : bootblock"
+	@$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
+	@rm -f bootblock.o
+
+	@echo "SIGN  : bootblock"
+	@$(BOOTBLOCK-PREFIX)/util/sign.pl bootblock
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(BOOTBLOCK-PREFIX)/obj/%.d: $(BOOTBLOCK-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(BOOTBLOCK-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(BOOTBLOCK-PREFIX)/obj/\1.d $(BOOTBLOCK-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(BOOTBLOCK-PREFIX)/obj/%.d: $(BOOTBLOCK-PREFIX)/%.S
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(BOOTBLOCK-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(BOOTBLOCK-PREFIX)/obj/\1.d $(BOOTBLOCK-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-bootblock
+clean-bootblock:
+	@rm -fR $(BOOTBLOCK-PREFIX)/obj
+	@rm -fR $(BOOTBLOCK-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-bootblock
+disp-vars-bootblock:
+	@echo "BOOTBLOCK-OBJ        =" $(BOOTBLOCK-OBJ)

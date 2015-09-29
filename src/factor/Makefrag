@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the factor user program                             ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #15    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+FACTOR-PREFIX		:= src/factor
+FACTOR-OBJ	 		:= $(notdir $(subst .c,.o,$(wildcard $(FACTOR-PREFIX)/*.c)))
+FACTOR-OBJ 			:= $(addprefix $(FACTOR-PREFIX)/obj/,$(FACTOR-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _factor
+DEPEND-FILES		+= $(subst .o,.d,$(FACTOR-OBJ))
+
+
+#
+# -- This is the main target for the factor pogram
+#    ---------------------------------------------
+_factor: $(FACTOR-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(FACTOR-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(FACTOR-PREFIX)/obj/%.o: $(FACTOR-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(FACTOR-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(FACTOR-PREFIX)/obj/%.d: $(FACTOR-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(FACTOR-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(FACTOR-PREFIX)/obj/\1.d $(FACTOR-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-factor
+clean-factor:
+	@rm -fR $(FACTOR-PREFIX)/obj
+	@rm -fR $(FACTOR-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-factor
+disp-vars-factor:
+	@echo "FACTOR-OBJ        =" $(FACTOR-OBJ)

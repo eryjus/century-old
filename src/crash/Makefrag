@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the crash user program                              ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-27    #13    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+CRASH-PREFIX		:= src/crash
+CRASH-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(CRASH-PREFIX)/*.c)))
+CRASH-OBJ 			:= $(addprefix $(CRASH-PREFIX)/obj/,$(CRASH-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _crash
+DEPEND-FILES		+= $(subst .o,.d,$(CRASH-OBJ))
+
+
+#
+# -- This is the main target for the crash pogram
+#    --------------------------------------------
+_crash: $(CRASH-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(CRASH-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(CRASH-PREFIX)/obj/%.o: $(CRASH-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(CRASH-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(CRASH-PREFIX)/obj/%.d: $(CRASH-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(CRASH-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(CRASH-PREFIX)/obj/\1.d $(CRASH-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-crash
+clean-crash:
+	@rm -fR $(CRASH-PREFIX)/obj
+	@rm -fR $(CRASH-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-crash
+disp-vars-crash:
+	@echo "CRASH-OBJ      =" $(CRASH-OBJ)

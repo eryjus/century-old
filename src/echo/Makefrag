@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the echo user program                               ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-27    #14    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+ECHO-PREFIX			:= src/echo
+ECHO-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ECHO-PREFIX)/*.c)))
+ECHO-OBJ 			:= $(addprefix $(ECHO-PREFIX)/obj/,$(ECHO-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _echo
+DEPEND-FILES		+= $(subst .o,.d,$(ECHO-OBJ))
+
+
+#
+# -- This is the main target for the echo pogram
+#    -------------------------------------------
+_echo: $(ECHO-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(ECHO-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(ECHO-PREFIX)/obj/%.o: $(ECHO-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(ECHO-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ECHO-PREFIX)/obj/%.d: $(ECHO-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ECHO-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ECHO-PREFIX)/obj/\1.d $(ECHO-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-echo
+clean-echo:
+	@rm -fR $(ECHO-PREFIX)/obj
+	@rm -fR $(ECHO-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-echo
+disp-vars-echo:
+	@echo "ECHO-OBJ        =" $(ECHO-OBJ)

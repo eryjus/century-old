@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the Hello user program                              ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-27    #18    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+HELLO-PREFIX		:= src/hello
+HELLO-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(HELLO-PREFIX)/*.c)))
+HELLO-OBJ 			:= $(addprefix $(HELLO-PREFIX)/obj/,$(HELLO-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _hello
+DEPEND-FILES		+= $(subst .o,.d,$(HELLO-OBJ))
+
+
+#
+# -- This is the main target for the hello pogram
+#    --------------------------------------------
+_hello: $(HELLO-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(HELLO-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(HELLO-PREFIX)/obj/%.o: $(HELLO-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(HELLO-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(HELLO-PREFIX)/obj/%.d: $(HELLO-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(HELLO-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(HELLO-PREFIX)/obj/\1.d $(HELLO-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-hello
+clean-hello:
+	@rm -fR $(HELLO-PREFIX)/obj
+	@rm -fR $(HELLO-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-hello
+disp-vars-hello:
+	@echo "HELLO-OBJ      =" $(HELLO-OBJ)

@@ -1,0 +1,80 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the initialization code                             ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-30    #36    Adam  Initial version.                                                                    ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+INITCODE-PREFIX		:= src/initcode
+INITCODE-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(INITCODE-PREFIX)/*.c))) \
+							$(notdir $(subst .S,.o,$(wildcard $(INITCODE-PREFIX)/*.S)))
+INITCODE-OBJ 		:= $(addprefix $(INITCODE-PREFIX)/obj/,$(INITCODE-OBJ))
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+DEPEND-FILES		+= $(subst .o,.d,$(INITCODE-OBJ))
+
+
+#
+# -- This is the main target for the init code
+#    -----------------------------------------
+initcode: $(INITCODE-PREFIX)/initcode.S
+	@mkdir -p $(INITCODE-PREFIX)/obj
+
+	@echo "ASM   : initcode.S"
+	@$(CC) $(CFLAGS) -nostdinc -I. -c $(INITCODE-PREFIX)/initcode.S
+
+	@echo "LINK  : initcode"
+	@$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o initcode.out initcode.o
+
+	@echo "STRIP : initcode"
+	@$(OBJCOPY) -S -O binary initcode.out initcode
+
+	@echo "DISASM: initcode"
+	@$(OBJDUMP) -S initcode.o > initcode.asm
+	@rm -f initcode.out
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(INITCODE-PREFIX)/obj/%.d: $(INITCODE-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(INITCODE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(INITCODE-PREFIX)/obj/\1.d $(INITCODE-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(INITCODE-PREFIX)/obj/%.d: $(INITCODE-PREFIX)/%.S
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(INITCODE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(INITCODE-PREFIX)/obj/\1.d $(INITCODE-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-initcode
+clean-initcode:
+	@rm -fR $(INITCODE-PREFIX)/obj
+	@rm -fR $(INITCODE-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-initcode
+disp-vars-initcode:
+	@echo "INITCODE-OBJ        =" $(INITCODE-OBJ)

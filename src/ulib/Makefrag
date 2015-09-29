@@ -1,0 +1,89 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the user library archive                            ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-29    #11    Adam  Initial version.                                                                    ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+ULIB-PREFIX			:= src/ulib
+ULIB-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ULIB-PREFIX)/*.c))) \
+							$(notdir $(subst .S,.o,$(wildcard $(ULIB-PREFIX)/*.S)))
+ULIB-OBJ 			:= $(addprefix $(ULIB-PREFIX)/obj/,$(ULIB-OBJ))
+
+#
+# -- Update the dependency file list from the main Makefile
+#    ------------------------------------------------------
+ULIB				+= libu.a
+DEPEND-FILES		+= $(subst .o,.d,$(ULIB-OBJ))
+
+
+#
+# -- This is the main target for the ulib library
+#    --------------------------------------------
+$(ULIB): $(ULIB-OBJ)
+	@echo "LIB   :" $@
+	@mkdir -p $(ULIB-PREFIX)/lib
+	@$(AR) $(ARFLAGS) -o $@ $^
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(ULIB-PREFIX)/obj/%.o: $(ULIB-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(ULIB-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ULIB-PREFIX)/obj/%.d: $(ULIB-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ULIB-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- This recipe is used to compile a S source file into an .o object
+#    ----------------------------------------------------------------
+$(ULIB-PREFIX)/obj/%.o: $(ULIB-PREFIX)/%.S
+	@echo "ASM   :" $(notdir $<)
+	@mkdir -p $(ULIB-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ULIB-PREFIX)/obj/%.d: $(ULIB-PREFIX)/%.S
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ULIB-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-ulib
+clean-ulib:
+	@rm -fR $(ULIB-PREFIX)/obj
+	@rm -fR $(ULIB-PREFIX)/lib
+	@rm -f $(ULIB)
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-ulib
+disp-vars-ulib:
+	@echo "ULIB-OBJ        =" $(ULIB-OBJ)
+	@echo "ULIB            =" $(ULIB)

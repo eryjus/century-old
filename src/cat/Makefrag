@@ -1,0 +1,77 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the cat user program                                ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-27    #12    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+CAT-PREFIX			:= src/cat
+CAT-OBJ				:= $(notdir $(subst .c,.o,$(wildcard $(CAT-PREFIX)/*.c)))
+CAT-OBJ 			:= $(addprefix $(CAT-PREFIX)/obj/,$(CAT-OBJ))
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _cat
+DEPEND-FILES		+= $(subst .o,.d,$(CAT-OBJ))
+
+
+#
+# -- This is the main target for the cat pogram
+#    ------------------------------------------
+_cat: $(CAT-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(CAT-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(CAT-PREFIX)/obj/%.o: $(CAT-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(CAT-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(CAT-PREFIX)/obj/%.d: $(CAT-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(CAT-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(CAT-PREFIX)/obj/\1.d $(CAT-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-cat
+clean-cat:
+	@rm -fR $(CAT-PREFIX)/obj
+	@rm -fR $(CAT-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-cat
+disp-vars-cat:
+	@echo "CAT-OBJ        =" $(CAT-OBJ)

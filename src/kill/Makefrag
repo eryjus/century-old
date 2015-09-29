@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the kill user program                               ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #20    Adam  KILLial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+KILL-PREFIX			:= src/kill
+KILL-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(KILL-PREFIX)/*.c)))
+KILL-OBJ 			:= $(addprefix $(KILL-PREFIX)/obj/,$(KILL-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _kill
+DEPEND-FILES		+= $(subst .o,.d,$(KILL-OBJ))
+
+
+#
+# -- This is the main target for the kill pogram
+#    -------------------------------------------
+_kill: $(KILL-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(KILL-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(KILL-PREFIX)/obj/%.o: $(KILL-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(KILL-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(KILL-PREFIX)/obj/%.d: $(KILL-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(KILL-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KILL-PREFIX)/obj/\1.d $(KILL-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-kill
+clean-kill:
+	@rm -fR $(KILL-PREFIX)/obj
+	@rm -fR $(KILL-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-kill
+disp-vars-kill:
+	@echo "KILL-OBJ        =" $(KILL-OBJ)

@@ -1,0 +1,80 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the trampoline code                                 ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-30    #35    Adam  Initial version.                                                                    ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+ENTRYOTHER-PREFIX	:= src/entryother
+ENTRYOTHER-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(ENTRYOTHER-PREFIX)/*.c))) \
+							$(notdir $(subst .S,.o,$(wildcard $(ENTRYOTHER-PREFIX)/*.S)))
+ENTRYOTHER-OBJ 		:= $(addprefix $(ENTRYOTHER-PREFIX)/obj/,$(ENTRYOTHER-OBJ))
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+DEPEND-FILES		+= $(subst .o,.d,$(ENTRYOTHER-OBJ))
+
+
+#
+# -- This is the main target for the trmpoline code
+#    ----------------------------------------------
+entryother: $(ENTRYOTHER-PREFIX)/entryother.S
+	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
+
+	@echo "ASM   : entryother.S"
+	@$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(ENTRYOTHER-PREFIX)/entryother.S
+
+	@echo "LINK  : entryother"
+	@$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
+
+	@echo "STRIP : entryother"
+	@$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
+
+	@echo "DISASM: entryother"
+	@$(OBJDUMP) -S bootblockother.o > entryother.asm
+	@rm -f bootblockother.o
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ENTRYOTHER-PREFIX)/obj/%.d: $(ENTRYOTHER-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ENTRYOTHER-PREFIX)/obj/%.d: $(ENTRYOTHER-PREFIX)/%.S
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-entryother
+clean-entryother:
+	@rm -fR $(ENTRYOTHER-PREFIX)/obj
+	@rm -fR $(ENTRYOTHER-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-entryother
+disp-vars-entryother:
+	@echo "ENTRYOTHER-OBJ        =" $(ENTRYOTHER-OBJ)

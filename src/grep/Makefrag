@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the grep user program                               ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #17    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+GREP-PREFIX			:= src/grep
+GREP-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(GREP-PREFIX)/*.c)))
+GREP-OBJ 			:= $(addprefix $(GREP-PREFIX)/obj/,$(GREP-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _grep
+DEPEND-FILES		+= $(subst .o,.d,$(GREP-OBJ))
+
+
+#
+# -- This is the main target for the grep pogram
+#    -------------------------------------------
+_grep: $(GREP-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(GREP-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(GREP-PREFIX)/obj/%.o: $(GREP-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(GREP-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(GREP-PREFIX)/obj/%.d: $(GREP-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(GREP-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(GREP-PREFIX)/obj/\1.d $(GREP-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-grep
+clean-grep:
+	@rm -fR $(GREP-PREFIX)/obj
+	@rm -fR $(GREP-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-grep
+disp-vars-grep:
+	@echo "GREP-OBJ      =" $(GREP-OBJ)

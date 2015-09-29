@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the stressfs user program                           ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #29    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+STRESSFS-PREFIX		:= src/stressfs
+STRESSFS-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(STRESSFS-PREFIX)/*.c)))
+STRESSFS-OBJ 		:= $(addprefix $(STRESSFS-PREFIX)/obj/,$(STRESSFS-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _stressfs
+DEPEND-FILES		+= $(subst .o,.d,$(STRESSFS-OBJ))
+
+
+#
+# -- This is the main target for the stressfs pogram
+#    -----------------------------------------------
+_stressfs: $(STRESSFS-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(STRESSFS-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(STRESSFS-PREFIX)/obj/%.o: $(STRESSFS-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(STRESSFS-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(STRESSFS-PREFIX)/obj/%.d: $(STRESSFS-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(STRESSFS-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(STRESSFS-PREFIX)/obj/\1.d $(STRESSFS-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-stressfs
+clean-stressfs:
+	@rm -fR $(STRESSFS-PREFIX)/obj
+	@rm -fR $(STRESSFS-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-stressfs
+disp-vars-stressfs:
+	@echo "STRESSFS-OBJ      =" $(STRESSFS-OBJ)

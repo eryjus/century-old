@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the zombie user program                             ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #32    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+ZOMBIE-PREFIX		:= src/zombie
+ZOMBIE-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ZOMBIE-PREFIX)/*.c)))
+ZOMBIE-OBJ 			:= $(addprefix $(ZOMBIE-PREFIX)/obj/,$(ZOMBIE-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _zombie
+DEPEND-FILES		+= $(subst .o,.d,$(ZOMBIE-OBJ))
+
+
+#
+# -- This is the main target for the zombie pogram
+#    ---------------------------------------------
+_zombie: $(ZOMBIE-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(ZOMBIE-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(ZOMBIE-PREFIX)/obj/%.o: $(ZOMBIE-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(ZOMBIE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(ZOMBIE-PREFIX)/obj/%.d: $(ZOMBIE-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(ZOMBIE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ZOMBIE-PREFIX)/obj/\1.d $(ZOMBIE-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-zombie
+clean-zombie:
+	@rm -fR $(ZOMBIE-PREFIX)/obj
+	@rm -fR $(ZOMBIE-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-zombie
+disp-vars-zombie:
+	@echo "ZOMBIE-OBJ      =" $(ZOMBIE-OBJ)

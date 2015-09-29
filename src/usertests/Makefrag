@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the usertests user program                          ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #30    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+USERTESTS-PREFIX	:= src/usertests
+USERTESTS-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(USERTESTS-PREFIX)/*.c)))
+USERTESTS-OBJ 		:= $(addprefix $(USERTESTS-PREFIX)/obj/,$(USERTESTS-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _usertests
+DEPEND-FILES		+= $(subst .o,.d,$(USERTESTS-OBJ))
+
+
+#
+# -- This is the main target for the usertests pogram
+#    ------------------------------------------------
+_usertests: $(USERTESTS-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(USERTESTS-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(USERTESTS-PREFIX)/obj/%.o: $(USERTESTS-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(USERTESTS-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(USERTESTS-PREFIX)/obj/%.d: $(USERTESTS-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(USERTESTS-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(USERTESTS-PREFIX)/obj/\1.d $(USERTESTS-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-usertests
+clean-usertests:
+	@rm -fR $(USERTESTS-PREFIX)/obj
+	@rm -fR $(USERTESTS-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-usertests
+disp-vars-usertests:
+	@echo "USERTESTS-OBJ      =" $(USERTESTS-OBJ)

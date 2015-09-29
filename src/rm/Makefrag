@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the rm user program                                 ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #25    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+RM-PREFIX			:= src/rm
+RM-OBJ				:= $(notdir $(subst .c,.o,$(wildcard $(RM-PREFIX)/*.c)))
+RM-OBJ	 			:= $(addprefix $(RM-PREFIX)/obj/,$(RM-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _rm
+DEPEND-FILES		+= $(subst .o,.d,$(RM-OBJ))
+
+
+#
+# -- This is the main target for the rm pogram
+#    -----------------------------------------
+_rm: $(RM-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(RM-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(RM-PREFIX)/obj/%.o: $(RM-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(RM-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(RM-PREFIX)/obj/%.d: $(RM-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(RM-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(RM-PREFIX)/obj/\1.d $(RM-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-rm
+clean-rm:
+	@rm -fR $(RM-PREFIX)/obj
+	@rm -fR $(RM-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-rm
+disp-vars-rm:
+	@echo "RM-OBJ        =" $(RM-OBJ)

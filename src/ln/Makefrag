@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the ln user program                                 ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #21    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+LN-PREFIX			:= src/ln
+LN-OBJ				:= $(notdir $(subst .c,.o,$(wildcard $(LN-PREFIX)/*.c)))
+LN-OBJ	 			:= $(addprefix $(LN-PREFIX)/obj/,$(LN-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _ln
+DEPEND-FILES		+= $(subst .o,.d,$(LN-OBJ))
+
+
+#
+# -- This is the main target for the ln pogram
+#    -----------------------------------------
+_ln: $(LN-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(LN-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(LN-PREFIX)/obj/%.o: $(LN-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(LN-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(LN-PREFIX)/obj/%.d: $(LN-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(LN-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(LN-PREFIX)/obj/\1.d $(LN-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-ln
+clean-ln:
+	@rm -fR $(LN-PREFIX)/obj
+	@rm -fR $(LN-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-ln
+disp-vars-ln:
+	@echo "LN-OBJ        =" $(LN-OBJ)

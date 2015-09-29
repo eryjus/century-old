@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the share user program                              ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #27    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+#
+# -- Local defines
+#    -------------
+SHARE-PREFIX		:= src/share
+SHARE-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(SHARE-PREFIX)/*.c)))
+SHARE-OBJ 			:= $(addprefix $(SHARE-PREFIX)/obj/,$(SHARE-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _share
+DEPEND-FILES		+= $(subst .o,.d,$(SHARE-OBJ))
+
+
+#
+# -- This is the main target for the share pogram
+#    --------------------------------------------
+_share: $(SHARE-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(SHARE-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(SHARE-PREFIX)/obj/%.o: $(SHARE-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(SHARE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(SHARE-PREFIX)/obj/%.d: $(SHARE-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(SHARE-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(SHARE-PREFIX)/obj/\1.d $(SHARE-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-share
+clean-share:
+	@rm -fR $(SHARE-PREFIX)/obj
+	@rm -fR $(SHARE-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-share
+disp-vars-share:
+	@echo "SHARE-OBJ      =" $(SHARE-OBJ)

@@ -1,0 +1,76 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the null user program                               ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-09-28    #24    Adam  Initial version.                                                                    ##
+##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
+##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+
+# -- Local defines
+#    -------------
+NULL-PREFIX			:= src/null
+NULL-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(NULL-PREFIX)/*.c)))
+NULL-OBJ 			:= $(addprefix $(NULL-PREFIX)/obj/,$(NULL-OBJ))
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS 				+= _null
+DEPEND-FILES		+= $(subst .o,.d,$(NULL-OBJ))
+
+
+#
+# -- This is the main target for the null pogram
+#    -------------------------------------------
+_null: $(NULL-OBJ) libu.a
+	@echo "LINK  :" $@
+	@mkdir -p $(NULL-PREFIX)/bin
+	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	@echo "DISASM:" $@
+	@$(OBJDUMP) -S $@ > $@.asm
+
+	@echo "SYMTAB:" $@
+	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(NULL-PREFIX)/obj/%.o: $(NULL-PREFIX)/%.c
+	@echo "CC    :" $(notdir $<)
+	@mkdir -p $(NULL-PREFIX)/obj
+	@$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(NULL-PREFIX)/obj/%.d: $(NULL-PREFIX)/%.c
+	@echo "DEPEND:" $(notdir $<)
+	@mkdir -p $(NULL-PREFIX)/obj
+	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(NULL-PREFIX)/obj/\1.d $(NULL-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-null
+clean-null:
+	@rm -fR $(NULL-PREFIX)/obj
+	@rm -fR $(NULL-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-null
+disp-vars-null:
+	@echo "NULL-OBJ        =" $(NULL-OBJ)
