@@ -1,17 +1,27 @@
 /* Simple linker script for the JOS kernel.
    See the GNU ld 'info' manual ("info ld") to learn the syntax. */
 
+
+/*  #45 -- added an .mboot section to satisfy grub2 that the entry point was in a segment */
+
 OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
 OUTPUT_ARCH(i386)
 ENTRY(_start)
 
 SECTIONS
 {
+    . = 0x100000;
+
+    .mboot : {
+        *(.mboot)
+    }
+
 	/* Link the kernel at this address: "." means the current address */
         /* Must be equal to KERNLINK */
-	. = 0x80100000;
+/*	. = 0x80100000;  */
+    . += 0x80000000;
 
-	.text : AT(0x100000) {
+	.text : AT(ADDR(.text) - 0x80000000) {
 		*(.text .stub .text.* .gnu.linkonce.t.*)
 	}
 

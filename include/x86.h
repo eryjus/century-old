@@ -1,5 +1,11 @@
 // Routines to let C code use special x86 instructions.
 
+// 2015-10-03  ADCL    #54   Changed the lgdt() function to also reload the segmetn selectors immediately
+//                           after loading the GDT for the CPU.
+
+#define BREAK asm volatile("xchgw %bx,%bx")
+
+
 static inline uchar
 inb(ushort port)
 {
@@ -69,6 +75,13 @@ lgdt(struct segdesc *p, int size)
   pd[2] = (uint)p >> 16;
 
   asm volatile("lgdt (%0)" : : "r" (pd));
+
+  asm volatile("ljmp $(0x08),$_activate; _activate:");
+  asm volatile("mov %0, %%ss" : : "r" (0x10));
+  asm volatile("mov %0, %%ds" : : "r" (0x10));
+  asm volatile("mov %0, %%es" : : "r" (0x10));
+  asm volatile("mov %0, %%fs" : : "r" (0x00));
+  asm volatile("mov %0, %%gs" : : "r" (0x00));
 }
 
 struct gatedesc;
@@ -121,7 +134,7 @@ static inline uint
 xchg(volatile uint *addr, uint newval)
 {
   uint result;
-  
+
   // The + in "+m" denotes a read-modify-write operand.
   asm volatile("lock; xchgl %0, %1" :
                "+m" (*addr), "=a" (result) :
@@ -139,13 +152,13 @@ rcr2(void)
 }
 
 static inline void
-lcr3(uint val) 
+lcr3(uint val)
 {
   asm volatile("movl %0,%%cr3" : : "r" (val));
 }
 
 static inline void
-halt() 
+halt()
 {
   asm volatile("hlt" : : );
 }

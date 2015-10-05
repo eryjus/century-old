@@ -14,6 +14,9 @@
 # 	boot
 # }
 
+#
+# -- #45 Added .mboot section to satisfy grub2 that the entry point was in a properly located segment
+
 #include "asm.h"
 #include "memlayout.h"
 #include "mmu.h"
@@ -21,7 +24,7 @@
 
 # Multiboot header.  Data to direct multiboot loader.
 .p2align 2
-.text
+.section .mboot,"ax"
 .globl multiboot_header
 multiboot_header:
   #define magic 0x1badb002
@@ -34,10 +37,11 @@ multiboot_header:
 # Since we haven't set up virtual memory yet, our entry point is
 # the physical address of 'entry'.
 .globl _start
-_start = V2P_WO(entry)
+#_start = V2P_WO(entry)
 
 # Entering xv6 on boot processor, with paging off.
 .globl entry
+_start:
 entry:
   # Turn on page size extension for 4Mbyte pages
   movl    %cr4, %eax

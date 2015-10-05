@@ -12,29 +12,14 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-27  Initial  Adam  Initial version.  Initially borrowed from the xv6 build system.                     ##
-##                #18    Adam  Removed the _hello target from this Makefile.                                       ##
-##                #12    Adam  Removed the _cat target from this Makefile.                                         ##
-##                #13    Adam  Removed the _crash target from this Makefile.                                       ##
-##                #14    Adam  Removed the _echo target from this Makefile.                                        ##
-##  2015-09-28    #15    Adam  Removed the _factor target from this Makefile.                                      ##
-##                #16    Adam  Removed the _forktest target from this Makefile.                                    ##
-##                #17    Adam  Removed the _grep target from this Makefile.                                        ##
-##                #19    Adam  Removed the _init target from this Makefile.                                        ##
-##                #20    Adam  Removed the _kill target from this Makefile.                                        ##
-##                #21    Adam  Removed the _ln target from this Makefile.                                          ##
-##                #22    Adam  Removed the _ls target from this Makefile.                                          ##
-##                #23    Adam  Removed the _mkdir target from this Makefile.                                       ##
-##                #24    Adam  Removed the _null target from this Makefile.                                        ##
-##                #25    Adam  Removed the _rm target from this Makefile.                                          ##
-##                #26    Adam  Removed the _sh target from this Makefile.                                          ##
-##                #27    Adam  Removed the _share target from this Makefile.                                       ##
-##                #29    Adam  Removed the _stressfs target from this Makefile.                                    ##
-##                #30    Adam  Removed the _usertests target from this Makefile.                                   ##
-##                #31    Adam  Removed the _wc target from this Makefile.                                          ##
-##                #32    Adam  Removed the _zombie target from this Makefile.                                      ##
-##  2015-09-30    #33    Adam  Removed the bootblock target from this Makefile.                                    ##
-##                #35    Adam  Removed the entryother target from this Makefile.                                   ##
-##                #36    Adam  Removed the initcode target from this Makefile.                                     ##
+##  2015-09-29  #12-#36  Adam  Reorganized this Makefile into subprojects                                          ##
+##  2015-09-30    #42    Adam  It is time to boot from GRUB.  The entry.S source has already been prepared to be   ##
+##                             Multiboot ready.  So the task is to take the 2-disk boot configuration and          ##
+##                             consolidate it down to a single disk.  To do this, we will install GRUB on a disk   ##
+##                             image file formatted in the ext2 file system.  This will involve a boot directory   ##
+##                             while all the rest of the executables will reside in the root folder until we have  ##
+##                             a more robust system.  In the end if all goes well, we will be able to depricate    ##
+##                             the bootblock module and the mkfs build utility.                                    ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -103,6 +88,66 @@ all: xv6.img
 include $(MAKE-FRAG)
 
 
+UPROGS2 		:= $(subst _,,$(UPROGS))
+
+#
+# -- This rule and the following recipes are used to build a disk image that can be booted with grub:
+#    * create a disk image, size = 20MB
+#    * make the partition table, partition it, and set it to bootable
+#    * map the partitions from the image file
+#    * write an ext2 file system to the first partition
+#    * create a temporary mount point
+#    * Mount the filesystem via loopback
+#    * copy the files to the disk
+#    * create a device map for grub
+#    * install grub
+#    * unmount the device
+#    * unmap the image
+#
+#    In the event of an error along the way, the image is umounted and the partitions unmapped.
+#    Finally, if the error cleanup is completely suffessful, then false is called to fail the
+#    recipe.
+#    ------------------------------------------------------------------------------------------------
+xv6-grub.img: kernel fs.img grub.cfg
+	echo "IMG   :" $@
+	sudo rm -fR p1
+	rm -f $@
+	mkdir -p ./p1
+	mkdir -p ./tmp
+	(dd if=/dev/zero of=$@ count=20 bs=1048576 &> /dev/null;								\
+		parted --script $@ mklabel msdos mkpart p ext2 1 20 set 1 boot on; 					\
+		sudo kpartx -as $@;																	\
+		sudo mkfs.ext2 /dev/mapper/loop0p1 &> /dev/null;									\
+		sudo mount /dev/mapper/loop0p1 ./p1;												\
+		echo "(hd0) /dev/loop0" > ./tmp/device.map;											\
+		sudo mkdir -p ./p1/boot/grub2/locale;												\
+		sudo mkdir -p ./p1/boot/grub2/i386-pc;												\
+		sudo cp -R sysroot/* p1/;															\
+		sudo cp kernel p1;																	\
+		sudo cp grub.cfg p1/boot/grub2/grub.cfg;											\
+		sudo grub2-install --no-floppy --grub-mkdevicemap=tmp/device.map 					\
+				--modules="biosdisk part_msdos ext2 configfile normal multiboot" 			\
+				--root-directory=`readlink -f p1` /dev/loop0 &> /dev/null;					\
+		sudo umount ./p1;																	\
+		sudo kpartx -d $@ &> /dev/null;														\
+	) || 																					\
+	(	sudo umount ./p1;																	\
+		sudo kpartx -d $@ &> /dev/null;														\
+	) || false
+
+
+#
+# -- create the grub config file
+#    ---------------------------
+grub.cfg: Makefile
+	echo "GRUB  :" $@
+	echo 'set timeout=0'						 > $@
+	echo 'menuentry "Century OS"' { 			>> $@
+	echo '	multiboot /kernel /kernel'	     	>> $@
+	echo '	boot'								>> $@
+	echo '}'									>> $@
+
+
 xv6.img: bootblock kernel fs.img
 	@dd if=/dev/zero of=xv6.img count=10000
 	@dd if=bootblock of=xv6.img conv=notrunc
@@ -127,8 +172,10 @@ fs.img: mkfs doc/README $(UPROGS)
 	@mkdir -p sysroot
 	@echo "COPYTO:" $@
 	@cp doc/README .
-	@./mkfs fs.img README $(UPROGS)
+	@./mkfs fs.img README $(UPROGS) &> /dev/null
 	@rm -f README
+	mkdir -p sysroot
+	for TGT in $(UPROGS2); do cp _$$TGT sysroot/$$TGT; done;					\
 
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -137,12 +184,14 @@ endif
 
 
 clean: $(MAKE-CLEAN)
-	@rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 		*.o *.d *.asm *.sym vectors.S bootblock entryother \
-		initcode initcode.out kernel xv6.img fs.img kernelmemfs mkfs \
-		.gdbinit \
-		$(UPROGS)
-	@rm -fR sysroot
+		initcode initcode.out kernel kernelmemfs mkfs \
+		.gdbinit *.img \
+		$(UPROGS) grub.cfg .bochsrc bochsout.txt
+	rm -fR sysroot
+	rm -fR tmp
+	sudo rm -fR p1
 
 
 xv6.pdf: $(PRINT)
@@ -153,7 +202,7 @@ print: xv6.pdf
 
 # run in emulators
 
-bochs : fs.img xv6.img
+bochs : xv6-grub.img
 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
 	bochs -q
 
@@ -166,9 +215,10 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 ifndef CPUS
 CPUS := 2
 endif
-QEMUOPTS = -hdb fs.img xv6.img -smp $(CPUS) -m 512 $(QEMUEXTRA)
+#QEMUOPTS = -hdb fs.img xv6.img -smp $(CPUS) -m 512 $(QEMUEXTRA)
+QEMUOPTS = -hdb fs.img xv6-grub.img -smp $(CPUS) -m 1024 $(QEMUEXTRA)
 
-qemu: fs.img xv6.img
+qemu: xv6-grub.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 
 qemu-memfs: xv6memfs.img
@@ -255,5 +305,6 @@ disp-vars: $(DISP-VARS)
 	@echo "MAKE-FRAG      =" $(MAKE-FRAG)
 	@echo "MAKE-FILES     =" $(MAKE-FILES)
 	@echo "UPROGS         =" $(UPROGS)
+	@echo "UPROGS2        =" $(UPROGS2)
 	@echo "ULIB           =" $(ULIB)
 	@echo "DEPEND-FILES   =" $(DEPEND-FILES)
