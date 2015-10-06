@@ -9,8 +9,10 @@
 ##  2015-09-28    #23    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 MKDIR-PREFIX		:= src/mkdir
 MKDIR-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(MKDIR-PREFIX)/*.c)))
 MKDIR-OBJ 			:= $(addprefix $(MKDIR-PREFIX)/obj/,$(MKDIR-OBJ))
+MKDIR-BIN			:= $(MKDIR-PREFIX)/bin/mkdir
+MKDIR-TARGET		:= $(SYSROOT)/usr/bin/mkdir
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _mkdir
+UPROGS 				+= _$(notdir $(MKDIR-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(MKDIR-OBJ))
+TARGETS 			+= $(MKDIR-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_mkdir: $(MKDIR-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make cat
+#    -----------------------------------------------------------------------------
+.PHONY: mkdir
+mkdir: $(MKDIR-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(MKDIR-TARGET): $(MKDIR-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the mkdir pogram
 #    --------------------------------------------
-_mkdir: $(MKDIR-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(MKDIR-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(MKDIR-BIN): $(MKDIR-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(MKDIR-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(MKDIR-PREFIX)/obj/%.o: $(MKDIR-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(MKDIR-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(MKDIR-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(MKDIR-PREFIX)/obj/%.d: $(MKDIR-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(MKDIR-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKDIR-PREFIX)/obj/\1.d $(MKDIR-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(MKDIR-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKDIR-PREFIX)/obj/\1.d $(MKDIR-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(MKDIR-PREFIX)/obj/%.d: $(MKDIR-PREFIX)/%.c
 #    --------
 .PHONY: clean-mkdir
 clean-mkdir:
-	@rm -fR $(MKDIR-PREFIX)/obj
-	@rm -fR $(MKDIR-PREFIX)/bin
+	rm -fR $(MKDIR-PREFIX)/obj
+	rm -fR $(MKDIR-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-mkdir:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-mkdir
 disp-vars-mkdir:
-	@echo "MKDIR-OBJ        =" $(MKDIR-OBJ)
+	echo "MKDIR-OBJ      =" $(MKDIR-OBJ)
+	echo "MKDIR-BIN      =" $(MKDIR-BIN)

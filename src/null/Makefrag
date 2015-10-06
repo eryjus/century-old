@@ -9,6 +9,7 @@
 ##  2015-09-28    #24    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -18,45 +19,75 @@
 NULL-PREFIX			:= src/null
 NULL-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(NULL-PREFIX)/*.c)))
 NULL-OBJ 			:= $(addprefix $(NULL-PREFIX)/obj/,$(NULL-OBJ))
+NULL-BIN			:= $(NULL-PREFIX)/bin/null
+NULL-TARGET			:= $(SYSROOT)/usr/bin/null
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _null
+UPROGS 				+= _$(notdir $(NULL-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(NULL-OBJ))
+TARGETS 			+= $(NULL-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_null: $(NULL-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make null
+#    ------------------------------------------------------------------------------
+.PHONY: null
+null: $(NULL-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(NULL-TARGET): $(NULL-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the null pogram
 #    -------------------------------------------
-_null: $(NULL-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(NULL-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(NULL-BIN): $(NULL-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(NULL-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(NULL-PREFIX)/obj/%.o: $(NULL-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(NULL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(NULL-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(NULL-PREFIX)/obj/%.d: $(NULL-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(NULL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(NULL-PREFIX)/obj/\1.d $(NULL-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(NULL-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(NULL-PREFIX)/obj/\1.d $(NULL-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +95,8 @@ $(NULL-PREFIX)/obj/%.d: $(NULL-PREFIX)/%.c
 #    --------
 .PHONY: clean-null
 clean-null:
-	@rm -fR $(NULL-PREFIX)/obj
-	@rm -fR $(NULL-PREFIX)/bin
+	rm -fR $(NULL-PREFIX)/obj
+	rm -fR $(NULL-PREFIX)/bin
 
 
 #
@@ -73,4 +104,5 @@ clean-null:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-null
 disp-vars-null:
-	@echo "NULL-OBJ        =" $(NULL-OBJ)
+	echo "NULL-OBJ       =" $(NULL-OBJ)
+	echo "NULL-BIN       =" $(NULL-BIN)

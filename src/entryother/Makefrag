@@ -7,6 +7,7 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-30    #35    Adam  Initial version.                                                                    ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -17,50 +18,71 @@ ENTRYOTHER-PREFIX	:= src/entryother
 ENTRYOTHER-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(ENTRYOTHER-PREFIX)/*.c))) \
 							$(notdir $(subst .S,.o,$(wildcard $(ENTRYOTHER-PREFIX)/*.S)))
 ENTRYOTHER-OBJ 		:= $(addprefix $(ENTRYOTHER-PREFIX)/obj/,$(ENTRYOTHER-OBJ))
+ENTRYOTHER-BIN		:= $(ENTRYOTHER-PREFIX)/lib/entryother
+ENTRYOTHER-TARGET	:= lib/entryother
 
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
 DEPEND-FILES		+= $(subst .o,.d,$(ENTRYOTHER-OBJ))
+TARGETS 			+= $(ENTRYOTHER-TARGET)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make entryother
+#    ------------------------------------------------------------------------------------
+.PHONY: entryother
+entryother: $(ENTRYOTHER-TARGET)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(ENTRYOTHER-TARGET): $(ENTRYOTHER-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the trmpoline code
 #    ----------------------------------------------
-entryother: $(ENTRYOTHER-PREFIX)/entryother.S
-	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
+$(ENTRYOTHER-BIN): $(ENTRYOTHER-PREFIX)/entryother.S
+	mkdir -p $(ENTRYOTHER-PREFIX)/obj
+	mkdir -p $(ENTRYOTHER-PREFIX)/lib
 
-	@echo "ASM   : entryother.S"
-	@$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(ENTRYOTHER-PREFIX)/entryother.S
+	echo "ASM   : entryother.S"
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c -o $(ENTRYOTHER-PREFIX)/obj/entryother.o $(ENTRYOTHER-PREFIX)/entryother.S
 
-	@echo "LINK  : entryother"
-	@$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
+	echo "LINK  : entryother"
+	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o $(ENTRYOTHER-PREFIX)/obj/entryother.o
 
-	@echo "STRIP : entryother"
-	@$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
+	echo "STRIP : entryother"
+	$(OBJCOPY) -S -O binary -j .text bootblockother.o $@
 
-	@echo "DISASM: entryother"
-	@$(OBJDUMP) -S bootblockother.o > entryother.asm
-	@rm -f bootblockother.o
+	echo "DISASM: entryother"
+	$(OBJDUMP) -S bootblockother.o > $@.asm
+	rm -f bootblockother.o
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ENTRYOTHER-PREFIX)/obj/%.d: $(ENTRYOTHER-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ENTRYOTHER-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ENTRYOTHER-PREFIX)/obj/%.d: $(ENTRYOTHER-PREFIX)/%.S
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ENTRYOTHER-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ENTRYOTHER-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ENTRYOTHER-PREFIX)/obj/\1.d $(ENTRYOTHER-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -68,8 +90,8 @@ $(ENTRYOTHER-PREFIX)/obj/%.d: $(ENTRYOTHER-PREFIX)/%.S
 #    --------
 .PHONY: clean-entryother
 clean-entryother:
-	@rm -fR $(ENTRYOTHER-PREFIX)/obj
-	@rm -fR $(ENTRYOTHER-PREFIX)/bin
+	rm -fR $(ENTRYOTHER-PREFIX)/obj
+	rm -fR $(ENTRYOTHER-PREFIX)/lib
 
 
 #
@@ -77,4 +99,5 @@ clean-entryother:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-entryother
 disp-vars-entryother:
-	@echo "ENTRYOTHER-OBJ        =" $(ENTRYOTHER-OBJ)
+	echo "ENTRYOTHER-OBJ =" $(ENTRYOTHER-OBJ)
+	echo "ENTRYOTHER-BIN =" $(ENTRYOTHER-BIN)

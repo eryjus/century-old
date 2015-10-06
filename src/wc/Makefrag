@@ -9,8 +9,10 @@
 ##  2015-09-28    #31    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 WC-PREFIX			:= src/wc
 WC-OBJ				:= $(notdir $(subst .c,.o,$(wildcard $(WC-PREFIX)/*.c)))
 WC-OBJ 				:= $(addprefix $(WC-PREFIX)/obj/,$(WC-OBJ))
+WC-BIN				:= $(WC-PREFIX)/bin/wc
+WC-TARGET			:= $(SYSROOT)/usr/bin/wc
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _wc
+UPROGS 				+= _$(notdir $(WC-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(WC-OBJ))
+TARGETS 			+= $(WC-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_wc: $(WC-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make wc
+#    ----------------------------------------------------------------------------
+.PHONY: wc
+wc: $(WC-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(WC-TARGET): $(WC-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the wc pogram
 #    -----------------------------------------
-_wc: $(WC-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(WC-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(WC-BIN): $(WC-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(WC-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(WC-PREFIX)/obj/%.o: $(WC-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(WC-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(WC-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(WC-PREFIX)/obj/%.d: $(WC-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(WC-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(WC-PREFIX)/obj/\1.d $(WC-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(WC-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(WC-PREFIX)/obj/\1.d $(WC-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(WC-PREFIX)/obj/%.d: $(WC-PREFIX)/%.c
 #    --------
 .PHONY: clean-wc
 clean-wc:
-	@rm -fR $(WC-PREFIX)/obj
-	@rm -fR $(WC-PREFIX)/bin
+	rm -fR $(WC-PREFIX)/obj
+	rm -fR $(WC-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-wc:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-wc
 disp-vars-wc:
-	@echo "WC-OBJ      =" $(WC-OBJ)
+	echo "WC-OBJ         =" $(WC-OBJ)
+	echo "WC-BIN         =" $(WC-BIN)

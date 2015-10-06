@@ -7,8 +7,10 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-27    #10    Adam  Initial version.                                                                    ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -31,27 +33,69 @@ KERNEL-DISK-OBJ		:= $(addprefix $(KERNEL-PREFIX)/obj/,$(KERNEL-DISK-OBJ))
 KERNEL-MEMFS-OBJ	:= $(addprefix $(KERNEL-PREFIX)/obj/,$(KERNEL-MEMFS-OBJ))
 
 KERNEL-ENTRY		:= $(addprefix $(KERNEL-PREFIX)/obj/,entry.o)
+KERNEL-DISK-BIN		:= $(CAT-PREFIX)/bin/kernel
+KERNEL-DISK-TARGET	:= $(SYSROOT)/boot/kernel
+KERNEL-MEMFS-BIN	:= $(CAT-PREFIX)/bin/kernelmemfs
+KERNEL-MEMFS-TARGET	:= $(SYSROOT)/boot/kernelmemfs
 
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
 DEPEND-FILES		+= $(subst .o,.d,$(KERNEL-OBJ))
+TARGETS 			+= $(KERNEL-DISK-TARGET) $(KERNEL-MEMFS-TARGET)
 
+
+#
+# -- This phony target will allow us to make this target simply by typing make kernel
+#    --------------------------------------------------------------------------------
+.PHONY: kernel
+kernel: $(KERNEL-DISK-BIN)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make kernelmemfs
+#    -------------------------------------------------------------------------------------
+.PHONY: kernelmemfs
+kernelmemfs: $(KERNEL-MEMFS-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(KERNEL-DISK-TARGET): $(KERNEL-DISK-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(KERNEL-MEMFS-TARGET): $(KERNEL-MEMFS-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the kernel
 #    --------------------------------------
-kernel: $(KERNEL-ENTRY) $(KERNEL-DISK-OBJ) entryother initcode $(KERNEL-PREFIX)/kernel.ld
-	@echo "LINK  :" $@
-	$(LD) $(LDFLAGS) -T $(KERNEL-PREFIX)/kernel.ld -o kernel $(KERNEL-ENTRY) $(KERNEL-DISK-OBJ) -b binary initcode entryother
+$(KERNEL-DISK-BIN): $(KERNEL-ENTRY) $(KERNEL-DISK-OBJ) lib/entryother lib/initcode $(KERNEL-PREFIX)/kernel.ld
+	echo "LINK  :" $@
+	cp lib/entryother .
+	cp lib/initcode .
+	mkdir -p $(dir $@)
+	$(LD) $(LDFLAGS) -T $(KERNEL-PREFIX)/kernel.ld -o $@ $(KERNEL-ENTRY) $(KERNEL-DISK-OBJ) -b binary initcode entryother
+	rm -f entryother initcode
 
-	@echo "DISASM:" $@
-	$(OBJDUMP) -S kernel > kernel.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 # kernelmemfs is a copy of kernel that maintains the
 # disk image in memory instead of writing to a disk.
@@ -59,51 +103,54 @@ kernel: $(KERNEL-ENTRY) $(KERNEL-DISK-OBJ) entryother initcode $(KERNEL-PREFIX)/
 # exploring disk buffering implementations, but it is
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
-kernelmemfs: $(KERNEL-ENTRY) $(KERNEL-MEMFS-OBJ) entryother initcode fs.img
-	@echo "LINK  :" $@
-	$(LD) $(LDFLAGS) -Ttext 0x100000 -e main -o kernelmemfs $(KERNEL-ENTRY) $(KERNEL-MEMFS-OBJ) -b binary initcode entryother fs.img
+$(KERNEL-MEMFS-BIN): $(KERNEL-ENTRY) $(KERNEL-MEMFS-OBJ) lib/entryother lib/initcode fs.img
+	echo "LINK  :" $@
+	cp lib/entryother .
+	cp lib/initcode .
+	$(LD) $(LDFLAGS) -Ttext 0x100000 -e main -o $@ $(KERNEL-ENTRY) $(KERNEL-MEMFS-OBJ) -b binary initcode entryother fs.img
+	rm -f entryother initcode
 
-	@echo "DISASM:" $@
-	$(OBJDUMP) -S kernelmemfs > kernelmemfs.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	$(OBJDUMP) -t kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernelmemfs.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(KERNEL-PREFIX)/obj/%.o: $(KERNEL-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(KERNEL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(KERNEL-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(KERNEL-PREFIX)/obj/%.d: $(KERNEL-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(KERNEL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERNEL-PREFIX)/obj/\1.d $(KERNEL-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(KERNEL-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERNEL-PREFIX)/obj/\1.d $(KERNEL-PREFIX)/obj/\1.o:@' > $@
 
 
 #
 # -- This recipe is used to compile a S source file into an .o object
 #    ----------------------------------------------------------------
 $(KERNEL-PREFIX)/obj/%.o: $(KERNEL-PREFIX)/%.S
-	@echo "ASM   :" $(notdir $<)
-	@mkdir -p $(KERNEL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "ASM   :" $(notdir $<)
+	mkdir -p $(KERNEL-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(KERNEL-PREFIX)/obj/%.d: $(KERNEL-PREFIX)/%.S
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(KERNEL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERNEL-PREFIX)/obj/\1.d $(KERNEL-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(KERNEL-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KERNEL-PREFIX)/obj/\1.d $(KERNEL-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -113,8 +160,8 @@ $(KERNEL-PREFIX)/obj/%.d: $(KERNEL-PREFIX)/%.S
 
 
 $(KERNEL-PREFIX)/vectors.S: $(KERNEL-PREFIX)/vectors.pl
-	@echo "GEN   :" $@
-	@perl $< > $@
+	echo "GEN   :" $@
+	perl $< > $@
 
 
 #
@@ -122,9 +169,9 @@ $(KERNEL-PREFIX)/vectors.S: $(KERNEL-PREFIX)/vectors.pl
 #    --------
 .PHONY: clean-kernel
 clean-kernel:
-	@rm -fR $(KERNEL-PREFIX)/obj
-	@rm -fR $(KERNEL-PREFIX)/bin
-	@rm -f $(KERNEL-PREFIX)/vectors.S
+	rm -fR $(KERNEL-PREFIX)/obj
+	rm -fR $(KERNEL-PREFIX)/bin
+	rm -f $(KERNEL-PREFIX)/vectors.S
 
 
 #
@@ -132,6 +179,8 @@ clean-kernel:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-kernel
 disp-vars-kernel:
-	@echo "KERNEL-OBJ        =" $(KERNEL-OBJ)
-	@echo "KERNEL-DISK-OBJ        =" $(KERNEL-DISK-OBJ)
-	@echo "KERNEL-MEMFS-OBJ        =" $(KERNEL-MEMFS-OBJ)
+	echo "KERNEL-OBJ     =" $(KERNEL-OBJ)
+	echo "KERNEL-DISK-OBJ=" $(KERNEL-DISK-OBJ)
+	echo "KERNEL-MEMFS-OBJ=" $(KERNEL-MEMFS-OBJ)
+	echo "KERNEL-DISK-OBJ=" $(KERNEL-DISK-BIN)
+	echo "KERNEL-MEMFS-OBJ=" $(KERNEL-MEMFS-BIN)

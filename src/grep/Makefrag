@@ -9,8 +9,10 @@
 ##  2015-09-28    #17    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,18 +20,47 @@
 GREP-PREFIX			:= src/grep
 GREP-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(GREP-PREFIX)/*.c)))
 GREP-OBJ 			:= $(addprefix $(GREP-PREFIX)/obj/,$(GREP-OBJ))
+GREP-BIN			:= $(GREP-PREFIX)/bin/grep
+GREP-TARGET			:= $(SYSROOT)/usr/bin/grep
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
 UPROGS 				+= _grep
 DEPEND-FILES		+= $(subst .o,.d,$(GREP-OBJ))
+TARGETS 			+= $(CAT-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_grep: $(GREP-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make grep
+#    ------------------------------------------------------------------------------
+.PHONY: grep
+grep: $(GREP-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(GREP-TARGET): $(GREP-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the grep pogram
 #    -------------------------------------------
-_grep: $(GREP-OBJ) libu.a
+$(GREP-BIN): $(GREP-OBJ) libu.a
 	@echo "LINK  :" $@
 	@mkdir -p $(GREP-PREFIX)/bin
 	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
@@ -73,4 +104,5 @@ clean-grep:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-grep
 disp-vars-grep:
-	@echo "GREP-OBJ      =" $(GREP-OBJ)
+	echo "GREP-OBJ       =" $(GREP-OBJ)
+	echo "GREP-BIN       =" $(GREP-BIN)

@@ -9,6 +9,7 @@
 ##  2015-09-27    #14    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -18,45 +19,76 @@
 ECHO-PREFIX			:= src/echo
 ECHO-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ECHO-PREFIX)/*.c)))
 ECHO-OBJ 			:= $(addprefix $(ECHO-PREFIX)/obj/,$(ECHO-OBJ))
+ECHO-BIN			:= $(ECHO-PREFIX)/bin/echo
+ECHO-TARGET			:= $(SYSROOT)/usr/bin/echo
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _echo
+UPROGS 				+= _$(notdir $(ECHO-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(ECHO-OBJ))
+TARGETS 			+= $(ECHO-TARGET)
+
+
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_echo: $(ECHO-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make echo
+#    ------------------------------------------------------------------------------
+.PHONY: echo
+echo: $(ECHO-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(ECHO-TARGET): $(ECHO-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the echo pogram
 #    -------------------------------------------
-_echo: $(ECHO-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(ECHO-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(ECHO-BIN): $(ECHO-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(ECHO-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(ECHO-PREFIX)/obj/%.o: $(ECHO-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(ECHO-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(ECHO-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ECHO-PREFIX)/obj/%.d: $(ECHO-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ECHO-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ECHO-PREFIX)/obj/\1.d $(ECHO-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ECHO-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ECHO-PREFIX)/obj/\1.d $(ECHO-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(ECHO-PREFIX)/obj/%.d: $(ECHO-PREFIX)/%.c
 #    --------
 .PHONY: clean-echo
 clean-echo:
-	@rm -fR $(ECHO-PREFIX)/obj
-	@rm -fR $(ECHO-PREFIX)/bin
+	rm -fR $(ECHO-PREFIX)/obj
+	rm -fR $(ECHO-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-echo:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-echo
 disp-vars-echo:
-	@echo "ECHO-OBJ        =" $(ECHO-OBJ)
+	echo "ECHO-OBJ       =" $(ECHO-OBJ)
+	echo "ECHO-BIN       =" $(ECHO-BIN)

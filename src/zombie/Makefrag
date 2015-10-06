@@ -9,8 +9,10 @@
 ##  2015-09-28    #32    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 ZOMBIE-PREFIX		:= src/zombie
 ZOMBIE-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ZOMBIE-PREFIX)/*.c)))
 ZOMBIE-OBJ 			:= $(addprefix $(ZOMBIE-PREFIX)/obj/,$(ZOMBIE-OBJ))
+ZOMBIE-BIN			:= $(ZOMBIE-PREFIX)/bin/zombie
+ZOMBIE-TARGET		:= $(SYSROOT)/usr/bin/zombie
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _zombie
+UPROGS 				+= _$(notdir $(ZOMBIE-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(ZOMBIE-OBJ))
+TARGETS 			+= $(ZOMBIE-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_zombie: $(ZOMBIE-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make zombie
+#    --------------------------------------------------------------------------------
+.PHONY: zombie
+zombie: $(ZOMBIE-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(ZOMBIE-TARGET): $(ZOMBIE-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the zombie pogram
 #    ---------------------------------------------
-_zombie: $(ZOMBIE-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(ZOMBIE-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(ZOMBIE-BIN): $(ZOMBIE-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(ZOMBIE-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(ZOMBIE-PREFIX)/obj/%.o: $(ZOMBIE-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(ZOMBIE-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(ZOMBIE-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ZOMBIE-PREFIX)/obj/%.d: $(ZOMBIE-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ZOMBIE-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ZOMBIE-PREFIX)/obj/\1.d $(ZOMBIE-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ZOMBIE-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ZOMBIE-PREFIX)/obj/\1.d $(ZOMBIE-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(ZOMBIE-PREFIX)/obj/%.d: $(ZOMBIE-PREFIX)/%.c
 #    --------
 .PHONY: clean-zombie
 clean-zombie:
-	@rm -fR $(ZOMBIE-PREFIX)/obj
-	@rm -fR $(ZOMBIE-PREFIX)/bin
+	rm -fR $(ZOMBIE-PREFIX)/obj
+	rm -fR $(ZOMBIE-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-zombie:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-zombie
 disp-vars-zombie:
-	@echo "ZOMBIE-OBJ      =" $(ZOMBIE-OBJ)
+	echo "ZOMBIE-OBJ     =" $(ZOMBIE-OBJ)
+	echo "ZOMBIE-BIN     =" $(ZOMBIE-BIN)

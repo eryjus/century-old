@@ -7,8 +7,10 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-29    #11    Adam  Initial version.                                                                    ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -17,57 +19,77 @@ ULIB-PREFIX			:= src/ulib
 ULIB-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ULIB-PREFIX)/*.c))) \
 							$(notdir $(subst .S,.o,$(wildcard $(ULIB-PREFIX)/*.S)))
 ULIB-OBJ 			:= $(addprefix $(ULIB-PREFIX)/obj/,$(ULIB-OBJ))
+ULIB-BIN			:= $(ULIB-PREFIX)/lib/libu.a
+ULIB-TARGET			:= $(SYSROOT)/usr/lib/libu.a
+
 
 #
 # -- Update the dependency file list from the main Makefile
 #    ------------------------------------------------------
-ULIB				+= libu.a
+ULIB				+= _$(notdir $(ULIB-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(ULIB-OBJ))
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make ulib
+#    ------------------------------------------------------------------------------
+.PHONY: ulib
+ulib: $(ULIB-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(ULIB-TARGET): $(ULIB-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the ulib library
 #    --------------------------------------------
-$(ULIB): $(ULIB-OBJ)
-	@echo "LIB   :" $@
-	@mkdir -p $(ULIB-PREFIX)/lib
-	@$(AR) $(ARFLAGS) -o $@ $^
+$(ULIB-BIN): $(ULIB-OBJ)
+	echo "LIB   :" $@
+	mkdir -p $(ULIB-PREFIX)/lib
+	$(AR) $(ARFLAGS) -o $@ $^
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(ULIB-PREFIX)/obj/%.o: $(ULIB-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(ULIB-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(ULIB-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ULIB-PREFIX)/obj/%.d: $(ULIB-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ULIB-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ULIB-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
 
 
 #
 # -- This recipe is used to compile a S source file into an .o object
 #    ----------------------------------------------------------------
 $(ULIB-PREFIX)/obj/%.o: $(ULIB-PREFIX)/%.S
-	@echo "ASM   :" $(notdir $<)
-	@mkdir -p $(ULIB-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "ASM   :" $(notdir $<)
+	mkdir -p $(ULIB-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(ULIB-PREFIX)/obj/%.d: $(ULIB-PREFIX)/%.S
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(ULIB-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(ULIB-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(ULIB-PREFIX)/obj/\1.d $(ULIB-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -75,9 +97,9 @@ $(ULIB-PREFIX)/obj/%.d: $(ULIB-PREFIX)/%.S
 #    --------
 .PHONY: clean-ulib
 clean-ulib:
-	@rm -fR $(ULIB-PREFIX)/obj
-	@rm -fR $(ULIB-PREFIX)/lib
-	@rm -f $(ULIB)
+	rm -fR $(ULIB-PREFIX)/obj
+	rm -fR $(ULIB-PREFIX)/lib
+	rm -f $(ULIB)
 
 
 #
@@ -85,5 +107,6 @@ clean-ulib:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-ulib
 disp-vars-ulib:
-	@echo "ULIB-OBJ        =" $(ULIB-OBJ)
-	@echo "ULIB            =" $(ULIB)
+	echo "ULIB-OBJ       =" $(ULIB-OBJ)
+	echo "ULIB           =" $(ULIB)
+	echo "ULIB-BIN       =" $(ULIB-BIN)

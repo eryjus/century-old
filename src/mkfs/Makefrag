@@ -7,8 +7,10 @@
 ##     Date     Tracker  Pgmr  Description                                                                         ##
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-30    #28    Adam  Initial version.                                                                    ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -17,6 +19,8 @@ MKFS-PREFIX			:= src/mkfs
 MKFS-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(MKFS-PREFIX)/*.c))) \
 							$(notdir $(subst .S,.o,$(wildcard $(MKFS-PREFIX)/*.S)))
 MKFS-OBJ 			:= $(addprefix $(MKFS-PREFIX)/obj/,$(MKFS-OBJ))
+MKFS-BIN			:= $(MKFS-PREFIX)/bin/mkfs
+MKFS-TARGET			:= mkfs
 
 
 #
@@ -26,29 +30,40 @@ DEPEND-FILES		+= $(subst .o,.d,$(MKFS-OBJ))
 
 
 #
+# -- This target will copy the program to the proper folder
+#    ------------------------------------------------------
+$(MKFS-TARGET): $(MKFS-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
+
+
+#
 # -- This is the main target for the mkfs build utility
 #    --------------------------------------------------
-mkfs: $(MKFS-PREFIX)/mkfs.c $(INCLUDE)/fs.h
-	@echo "CC-LNK:" $@
-	@gcc -Werror -Wall -iquote include -o mkfs $(MKFS-PREFIX)/mkfs.c
+$(MKFS-BIN): $(MKFS-PREFIX)/mkfs.c $(INCLUDE)/fs.h
+	echo "CC-LNK:" $@
+	mkdir -p $(dir $@)
+	gcc -Werror -Wall -iquote include -o $@ $(MKFS-PREFIX)/mkfs.c
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(MKFS-PREFIX)/obj/%.d: $(MKFS-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(MKFS-PREFIX)/obj
-	@gcc $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKFS-PREFIX)/obj/\1.d $(MKFS-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(MKFS-PREFIX)/obj
+	gcc $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKFS-PREFIX)/obj/\1.d $(MKFS-PREFIX)/obj/\1.o:@' > $@
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(MKFS-PREFIX)/obj/%.d: $(MKFS-PREFIX)/%.S
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(MKFS-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKFS-PREFIX)/obj/\1.d $(MKFS-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(MKFS-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(MKFS-PREFIX)/obj/\1.d $(MKFS-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -56,8 +71,8 @@ $(MKFS-PREFIX)/obj/%.d: $(MKFS-PREFIX)/%.S
 #    --------
 .PHONY: clean-mkfs
 clean-mkfs:
-	@rm -fR $(MKFS-PREFIX)/obj
-	@rm -fR $(MKFS-PREFIX)/bin
+	rm -fR $(MKFS-PREFIX)/obj
+	rm -fR $(MKFS-PREFIX)/bin
 
 
 #
@@ -65,4 +80,5 @@ clean-mkfs:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-mkfs
 disp-vars-mkfs:
-	@echo "MKFS-OBJ        =" $(MKFS-OBJ)
+	echo "MKFS-OBJ       =" $(MKFS-OBJ)
+	echo "MKFS-BIN       =" $(MKFS-BIN)

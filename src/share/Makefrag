@@ -9,8 +9,10 @@
 ##  2015-09-28    #27    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 SHARE-PREFIX		:= src/share
 SHARE-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(SHARE-PREFIX)/*.c)))
 SHARE-OBJ 			:= $(addprefix $(SHARE-PREFIX)/obj/,$(SHARE-OBJ))
+SHARE-BIN			:= $(SHARE-PREFIX)/bin/share
+SHARE-TARGET		:= $(SYSROOT)/usr/bin/share
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _share
+UPROGS 				+= _$(notdir $(SHARE-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(SHARE-OBJ))
+TARGETS 			+= $(SHARE-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_share: $(SHARE-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make share
+#    -------------------------------------------------------------------------------
+.PHONY: share
+share: $(SHARE-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(SHARE-TARGET): $(SHARE-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the share pogram
 #    --------------------------------------------
-_share: $(SHARE-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(SHARE-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(SHARE-BIN): $(SHARE-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(SHARE-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(SHARE-PREFIX)/obj/%.o: $(SHARE-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(SHARE-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(SHARE-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(SHARE-PREFIX)/obj/%.d: $(SHARE-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(SHARE-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(SHARE-PREFIX)/obj/\1.d $(SHARE-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(SHARE-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(SHARE-PREFIX)/obj/\1.d $(SHARE-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(SHARE-PREFIX)/obj/%.d: $(SHARE-PREFIX)/%.c
 #    --------
 .PHONY: clean-share
 clean-share:
-	@rm -fR $(SHARE-PREFIX)/obj
-	@rm -fR $(SHARE-PREFIX)/bin
+	rm -fR $(SHARE-PREFIX)/obj
+	rm -fR $(SHARE-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-share:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-share
 disp-vars-share:
-	@echo "SHARE-OBJ      =" $(SHARE-OBJ)
+	echo "SHARE-OBJ      =" $(SHARE-OBJ)
+	echo "SHARE-BIN      =" $(SHARE-BIN)

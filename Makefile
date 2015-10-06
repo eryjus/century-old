@@ -20,6 +20,9 @@
 ##                             while all the rest of the executables will reside in the root folder until we have  ##
 ##                             a more robust system.  In the end if all goes well, we will be able to depricate    ##
 ##                             the bootblock module and the mkfs build utility.                                    ##
+##  2015-10-05    #58    Adam  Removed deprecated bootblock from the build                                         ##
+##                #46    Adam  Eliminated xv6.img disk image                                                       ##
+##                #44    Adam  Eliminated UPROGS2 as no longer needed                                              ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -45,6 +48,8 @@ INCLUDE			:= include
 #    ---------------------------------------------
 TOOLPREFIX 		:= i686-elf-
 QEMU 			:= /bin/qemu-system-i386
+SYSROOT			:= sysroot
+UFS 			:= usrfs
 
 
 #
@@ -52,6 +57,7 @@ QEMU 			:= /bin/qemu-system-i386
 #    ---------------------------------------------------------------------------------------------------
 DEPEND-FILES	:=
 UPROGS			:=
+TARGETS			:=
 
 
 #
@@ -79,7 +85,7 @@ LDFLAGS 		+= -m $(shell $(LD) -V | grep elf_i386 2>/dev/null) -L.
 # -- Make sure we have a default build before we include all the other modules
 #    -------------------------------------------------------------------------
 .PHONY: all
-all: xv6.img
+all: xv6-grub.img
 
 
 #
@@ -87,8 +93,6 @@ all: xv6.img
 #    -------------------------
 include $(MAKE-FRAG)
 
-
-UPROGS2 		:= $(subst _,,$(UPROGS))
 
 #
 # -- This rule and the following recipes are used to build a disk image that can be booted with grub:
@@ -108,7 +112,7 @@ UPROGS2 		:= $(subst _,,$(UPROGS))
 #    Finally, if the error cleanup is completely suffessful, then false is called to fail the
 #    recipe.
 #    ------------------------------------------------------------------------------------------------
-xv6-grub.img: kernel fs.img grub.cfg
+xv6-grub.img: $(SYSROOT)/boot/kernel fs.img grub.cfg
 	echo "IMG   :" $@
 	sudo rm -fR p1
 	rm -f $@
@@ -122,8 +126,8 @@ xv6-grub.img: kernel fs.img grub.cfg
 		echo "(hd0) /dev/loop0" > ./tmp/device.map;											\
 		sudo mkdir -p ./p1/boot/grub2/locale;												\
 		sudo mkdir -p ./p1/boot/grub2/i386-pc;												\
-		sudo cp -R sysroot/* p1/;															\
-		sudo cp kernel p1;																	\
+		sudo cp -R $(SYSROOT)/* p1/;														\
+		sudo cp $(SYSROOT)/boot/kernel p1;																	\
 		sudo cp grub.cfg p1/boot/grub2/grub.cfg;											\
 		sudo grub2-install --no-floppy --grub-mkdevicemap=tmp/device.map 					\
 				--modules="biosdisk part_msdos ext2 configfile normal multiboot" 			\
@@ -148,17 +152,6 @@ grub.cfg: Makefile
 	echo '}'									>> $@
 
 
-xv6.img: bootblock kernel fs.img
-	@dd if=/dev/zero of=xv6.img count=10000
-	@dd if=bootblock of=xv6.img conv=notrunc
-	@dd if=kernel of=xv6.img seek=1 conv=notrunc
-
-xv6memfs.img: bootblock kernelmemfs
-	@dd if=/dev/zero of=xv6memfs.img count=10000
-	@dd if=bootblock of=xv6memfs.img conv=notrunc
-	@dd if=kernelmemfs of=xv6memfs.img seek=1 conv=notrunc
-
-
 # make a printout
 FILES 			:= $(shell grep -v '^\#' runoff.list)
 PRINT 			:= runoff.list runoff.spec README toc.hdr toc.ftr $(FILES)
@@ -169,13 +162,10 @@ tags: $(OBJS) entryother.S _init
 
 
 fs.img: mkfs doc/README $(UPROGS)
-	@mkdir -p sysroot
-	@echo "COPYTO:" $@
-	@cp doc/README .
-	@./mkfs fs.img README $(UPROGS) &> /dev/null
-	@rm -f README
-	mkdir -p sysroot
-	for TGT in $(UPROGS2); do cp _$$TGT sysroot/$$TGT; done;					\
+	echo "MKFS  :" $@
+	cp doc/README .
+	./mkfs fs.img README $(UPROGS) &> /dev/null
+	rm -f ./README
 
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -185,12 +175,14 @@ endif
 
 clean: $(MAKE-CLEAN)
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
-		*.o *.d *.asm *.sym vectors.S bootblock entryother \
+		*.o *.d *.asm *.sym vectors.S entryother \
 		initcode initcode.out kernel kernelmemfs mkfs \
-		.gdbinit *.img \
+		.gdbinit *.img README libu.a \
 		$(UPROGS) grub.cfg .bochsrc bochsout.txt
-	rm -fR sysroot
+	rm -fR $(SYSROOT)
+	rm -fR usrfs
 	rm -fR tmp
+	rm -fR lib
 	sudo rm -fR p1
 
 
@@ -221,20 +213,17 @@ QEMUOPTS = -hdb fs.img xv6-grub.img -smp $(CPUS) -m 1024 $(QEMUEXTRA)
 qemu: xv6-grub.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 
-qemu-memfs: xv6memfs.img
-	$(QEMU) xv6memfs.img -smp $(CPUS)
-
-qemu-nox: fs.img xv6.img
+qemu-nox: fs.img xv6-grub.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: fs.img xv6.img .gdbinit
+qemu-gdb: fs.img xv6-grub.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit
+qemu-nox-gdb: fs.img xv6-grub.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
@@ -245,11 +234,11 @@ fs.vdi: fs.img
 	dd if=/dev/zero count=10000 >> fs.img
 	VBoxManage convertfromraw fs.img fs.vdi
 
-xv6.vdi: xv6.img
-	rm -f xv6.vdi
-	VBoxManage convertfromraw xv6.img xv6.vdi
+xv6-grub.vdi: xv6-grub.img
+	rm -f xv6-grub.vdi
+	VBoxManage convertfromraw xv6-grub.img xv6-grub.vdi
 
-vbox: xv6.vdi fs.vdi
+vbox: xv6-grub.vdi fs.vdi
 
 # CUT HERE
 # prepare dist for students
@@ -301,10 +290,10 @@ tar:
 #    ------------------------------------------------------------
 .PHONY: disp-vars
 disp-vars: $(DISP-VARS)
-	@echo "MAKE-CLEAN     =" $(MAKE-CLEAN)
-	@echo "MAKE-FRAG      =" $(MAKE-FRAG)
-	@echo "MAKE-FILES     =" $(MAKE-FILES)
-	@echo "UPROGS         =" $(UPROGS)
-	@echo "UPROGS2        =" $(UPROGS2)
-	@echo "ULIB           =" $(ULIB)
-	@echo "DEPEND-FILES   =" $(DEPEND-FILES)
+	echo "MAKE-CLEAN     =" $(MAKE-CLEAN)
+	echo "MAKE-FRAG      =" $(MAKE-FRAG)
+	echo "MAKE-FILES     =" $(MAKE-FILES)
+	echo "UPROGS         =" $(UPROGS)
+	echo "ULIB           =" $(ULIB)
+	echo "DEPEND-FILES   =" $(DEPEND-FILES)
+	echo "TARGETS        =" $(TARGETS)

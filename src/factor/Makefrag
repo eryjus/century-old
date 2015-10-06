@@ -9,6 +9,7 @@
 ##  2015-09-28    #15    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -18,6 +19,9 @@
 FACTOR-PREFIX		:= src/factor
 FACTOR-OBJ	 		:= $(notdir $(subst .c,.o,$(wildcard $(FACTOR-PREFIX)/*.c)))
 FACTOR-OBJ 			:= $(addprefix $(FACTOR-PREFIX)/obj/,$(FACTOR-OBJ))
+FACTOR-BIN			:= $(FACTOR-PREFIX)/bin/factor
+FACTOR-TARGET		:= $(SYSROOT)/usr/bin/factor
+
 
 #
 # -- Update the User programs list from the main Makefile
@@ -26,10 +30,39 @@ UPROGS 				+= _factor
 DEPEND-FILES		+= $(subst .o,.d,$(FACTOR-OBJ))
 
 
+TARGETS 			+= $(FACTOR-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_factor: $(FACTOR-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make factor
+#    --------------------------------------------------------------------------------
+.PHONY: factor
+factor: $(FACTOR-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(FACTOR-TARGET): $(FACTOR-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
+
+
 #
 # -- This is the main target for the factor pogram
 #    ---------------------------------------------
-_factor: $(FACTOR-OBJ) libu.a
+$(FACTOR-BIN): $(FACTOR-OBJ) libu.a
 	@echo "LINK  :" $@
 	@mkdir -p $(FACTOR-PREFIX)/bin
 	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
@@ -73,4 +106,5 @@ clean-factor:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-factor
 disp-vars-factor:
-	@echo "FACTOR-OBJ        =" $(FACTOR-OBJ)
+	echo "FACTOR-OBJ     =" $(FACTOR-OBJ)
+	echo "FACTOR-BIN     =" $(FACTOR-BIN)

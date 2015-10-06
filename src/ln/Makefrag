@@ -9,8 +9,10 @@
 ##  2015-09-28    #21    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,74 @@
 LN-PREFIX			:= src/ln
 LN-OBJ				:= $(notdir $(subst .c,.o,$(wildcard $(LN-PREFIX)/*.c)))
 LN-OBJ	 			:= $(addprefix $(LN-PREFIX)/obj/,$(LN-OBJ))
+LN-BIN				:= $(LN-PREFIX)/bin/ln
+LN-TARGET			:= $(SYSROOT)/usr/bin/ln
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _ln
+UPROGS 				+= _$(notdir $(LN-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(LN-OBJ))
+TARGETS 			+= $(LN-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_ln: $(LN-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make ln
+#    ----------------------------------------------------------------------------
+.PHONY: ln
+ln: $(LN-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(LN-TARGET): $(LN-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the ln pogram
 #    -----------------------------------------
-_ln: $(LN-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(LN-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(LN-BIN): $(LN-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(LN-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(LN-PREFIX)/obj/%.o: $(LN-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(LN-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(LN-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(LN-PREFIX)/obj/%.d: $(LN-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(LN-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(LN-PREFIX)/obj/\1.d $(LN-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(LN-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(LN-PREFIX)/obj/\1.d $(LN-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +95,8 @@ $(LN-PREFIX)/obj/%.d: $(LN-PREFIX)/%.c
 #    --------
 .PHONY: clean-ln
 clean-ln:
-	@rm -fR $(LN-PREFIX)/obj
-	@rm -fR $(LN-PREFIX)/bin
+	rm -fR $(LN-PREFIX)/obj
+	rm -fR $(LN-PREFIX)/bin
 
 
 #
@@ -73,4 +104,5 @@ clean-ln:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-ln
 disp-vars-ln:
-	@echo "LN-OBJ        =" $(LN-OBJ)
+	echo "LN-OBJ         =" $(LN-OBJ)
+	echo "LN-BIN         =" $(LN-BIN)

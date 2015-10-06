@@ -9,54 +9,86 @@
 ##  2015-09-28    #16    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-05    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
 #    -------------
 FORKTEST-PREFIX		:= src/forktest
-FORKTEST-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(FORKTEST-PREFIX)/*.c)))
-FORKTEST-OBJ 			:= $(addprefix $(FORKTEST-PREFIX)/obj/,$(FORKTEST-OBJ))
+FORKTEST-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(FORKTEST-PREFIX)/*.c)))
+FORKTEST-OBJ 		:= $(addprefix $(FORKTEST-PREFIX)/obj/,$(FORKTEST-OBJ))
+FORKTEST-BIN		:= $(FORKTEST-PREFIX)/bin/forktest
+FORKTEST-TARGET		:= $(SYSROOT)/usr/bin/forktest
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
 UPROGS 				+= _forktest
 DEPEND-FILES		+= $(subst .o,.d,$(FORKTEST-OBJ))
+TARGETS 			+= $(FORKTEST-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_forktest: $(FORKTEST-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make forktest
+#    ----------------------------------------------------------------------------------
+.PHONY: forktest
+forktest: $(FORKTEST-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(FORKTEST-TARGET): $(FORKTEST-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the forktest pogram
 #    -----------------------------------------------------------------------------------------------------------
-_forktest: $(FORKTEST-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(FORKTEST-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o _forktest $^
+$(FORKTEST-BIN): $(FORKTEST-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(FORKTEST-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(FORKTEST-PREFIX)/obj/%.o: $(FORKTEST-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(FORKTEST-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(FORKTEST-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(FORKTEST-PREFIX)/obj/%.d: $(FORKTEST-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(FORKTEST-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(FORKTEST-PREFIX)/obj/\1.d $(FORKTEST-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(FORKTEST-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(FORKTEST-PREFIX)/obj/\1.d $(FORKTEST-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(FORKTEST-PREFIX)/obj/%.d: $(FORKTEST-PREFIX)/%.c
 #    --------
 .PHONY: clean-forktest
 clean-forktest:
-	@rm -fR $(FORKTEST-PREFIX)/obj
-	@rm -fR $(FORKTEST-PREFIX)/bin
+	rm -fR $(FORKTEST-PREFIX)/obj
+	rm -fR $(FORKTEST-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-forktest:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-forktest
 disp-vars-forktest:
-	@echo "FORKTEST-OBJ      =" $(FORKTEST-OBJ)
+	echo "FORKTEST-OBJ   =" $(FORKTEST-OBJ)
+	echo "FORKTEST-BIN   =" $(FORKTEST-BIN)

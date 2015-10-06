@@ -9,8 +9,10 @@
 ##  2015-09-28    #29    Adam  Initial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 STRESSFS-PREFIX		:= src/stressfs
 STRESSFS-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(STRESSFS-PREFIX)/*.c)))
 STRESSFS-OBJ 		:= $(addprefix $(STRESSFS-PREFIX)/obj/,$(STRESSFS-OBJ))
+STRESSFS-BIN		:= $(STRESSFS-PREFIX)/bin/stressfs
+STRESSFS-TARGET		:= $(SYSROOT)/usr/bin/stressfs
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _stressfs
+UPROGS 				+= _$(notdir $(STRESSFS-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(STRESSFS-OBJ))
+TARGETS 			+= $(STRESSFS-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_stressfs: $(STRESSFS-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make stressfs
+#    ----------------------------------------------------------------------------------
+.PHONY: stressfs
+stressfs: $(STRESSFS-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(STRESSFS-TARGET): $(STRESSFS-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the stressfs pogram
 #    -----------------------------------------------
-_stressfs: $(STRESSFS-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(STRESSFS-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(STRESSFS-BIN): $(STRESSFS-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(STRESSFS-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(STRESSFS-PREFIX)/obj/%.o: $(STRESSFS-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(STRESSFS-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(STRESSFS-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(STRESSFS-PREFIX)/obj/%.d: $(STRESSFS-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(STRESSFS-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(STRESSFS-PREFIX)/obj/\1.d $(STRESSFS-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(STRESSFS-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(STRESSFS-PREFIX)/obj/\1.d $(STRESSFS-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(STRESSFS-PREFIX)/obj/%.d: $(STRESSFS-PREFIX)/%.c
 #    --------
 .PHONY: clean-stressfs
 clean-stressfs:
-	@rm -fR $(STRESSFS-PREFIX)/obj
-	@rm -fR $(STRESSFS-PREFIX)/bin
+	rm -fR $(STRESSFS-PREFIX)/obj
+	rm -fR $(STRESSFS-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-stressfs:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-stressfs
 disp-vars-stressfs:
-	@echo "STRESSFS-OBJ      =" $(STRESSFS-OBJ)
+	echo "STRESSFS-OBJ   =" $(STRESSFS-OBJ)
+	echo "STRESSFS-BIN   =" $(STRESSFS-BIN)

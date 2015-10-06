@@ -9,8 +9,10 @@
 ##  2015-09-28    #20    Adam  KILLial version.                                                                    ##
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
+##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
 ##                                                                                                                 ##
 #####################################################################################################################
+
 
 #
 # -- Local defines
@@ -18,45 +20,75 @@
 KILL-PREFIX			:= src/kill
 KILL-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(KILL-PREFIX)/*.c)))
 KILL-OBJ 			:= $(addprefix $(KILL-PREFIX)/obj/,$(KILL-OBJ))
+KILL-BIN			:= $(KILL-PREFIX)/bin/kill
+KILL-TARGET			:= $(SYSROOT)/usr/bin/kill
+
 
 #
 # -- Update the User programs list from the main Makefile
 #    ----------------------------------------------------
-UPROGS 				+= _kill
+UPROGS 				+= _$(notdir $(KILL-BIN))
 DEPEND-FILES		+= $(subst .o,.d,$(KILL-OBJ))
+TARGETS 			+= $(KILL-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_kill: $(KILL-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make kill
+#    ------------------------------------------------------------------------------
+.PHONY: kill
+kill: $(KILL-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(KILL-TARGET): $(KILL-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
 
 
 #
 # -- This is the main target for the kill pogram
 #    -------------------------------------------
-_kill: $(KILL-OBJ) libu.a
-	@echo "LINK  :" $@
-	@mkdir -p $(KILL-PREFIX)/bin
-	@$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+$(KILL-BIN): $(KILL-OBJ) libu.a
+	echo "LINK  :" $@
+	mkdir -p $(KILL-PREFIX)/bin
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
 
-	@echo "DISASM:" $@
-	@$(OBJDUMP) -S $@ > $@.asm
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
 
-	@echo "SYMTAB:" $@
-	@$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
 
 
 #
 # -- This recipe is used to compile a C source file into an .o object
 #    ----------------------------------------------------------------
 $(KILL-PREFIX)/obj/%.o: $(KILL-PREFIX)/%.c
-	@echo "CC    :" $(notdir $<)
-	@mkdir -p $(KILL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(KILL-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 #
 # -- This recipe creates the depend file
 #    -----------------------------------
 $(KILL-PREFIX)/obj/%.d: $(KILL-PREFIX)/%.c
-	@echo "DEPEND:" $(notdir $<)
-	@mkdir -p $(KILL-PREFIX)/obj
-	@$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KILL-PREFIX)/obj/\1.d $(KILL-PREFIX)/obj/\1.o:@' > $@
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(KILL-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(KILL-PREFIX)/obj/\1.d $(KILL-PREFIX)/obj/\1.o:@' > $@
 
 
 #
@@ -64,8 +96,8 @@ $(KILL-PREFIX)/obj/%.d: $(KILL-PREFIX)/%.c
 #    --------
 .PHONY: clean-kill
 clean-kill:
-	@rm -fR $(KILL-PREFIX)/obj
-	@rm -fR $(KILL-PREFIX)/bin
+	rm -fR $(KILL-PREFIX)/obj
+	rm -fR $(KILL-PREFIX)/bin
 
 
 #
@@ -73,4 +105,5 @@ clean-kill:
 #    ------------------------------------------------------------
 .PHONY: disp-vars-kill
 disp-vars-kill:
-	@echo "KILL-OBJ        =" $(KILL-OBJ)
+	echo "KILL-OBJ       =" $(KILL-OBJ)
+	echo "KILL-BIN       =" $(KILL-BIN)
