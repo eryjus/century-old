@@ -23,6 +23,7 @@
 ##  2015-10-05    #58    Adam  Removed deprecated bootblock from the build                                         ##
 ##                #46    Adam  Eliminated xv6.img disk image                                                       ##
 ##                #44    Adam  Eliminated UPROGS2 as no longer needed                                              ##
+##  2015-10-06    #66    Adam  Fix broken build                                                                    ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -50,6 +51,7 @@ TOOLPREFIX 		:= i686-elf-
 QEMU 			:= /bin/qemu-system-i386
 SYSROOT			:= sysroot
 UFS 			:= usrfs
+USR-LIB			:= $(SYSROOT)/lib/libu.a
 
 
 #

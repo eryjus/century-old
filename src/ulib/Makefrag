@@ -8,6 +8,7 @@
 ##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
 ##  2015-09-29    #11    Adam  Initial version.                                                                    ##
 ##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
+##  2015-10-06    #66    Adam  Fix broken build                                                                    ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -19,8 +20,8 @@ ULIB-PREFIX			:= src/ulib
 ULIB-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(ULIB-PREFIX)/*.c))) \
 							$(notdir $(subst .S,.o,$(wildcard $(ULIB-PREFIX)/*.S)))
 ULIB-OBJ 			:= $(addprefix $(ULIB-PREFIX)/obj/,$(ULIB-OBJ))
-ULIB-BIN			:= $(ULIB-PREFIX)/lib/libu.a
-ULIB-TARGET			:= $(SYSROOT)/usr/lib/libu.a
+ULIB-BIN			:= $(ULIB-PREFIX)/lib/$(notdir $(USR-LIB))
+ULIB-TARGET			:= $(USR-LIB)
 
 
 #

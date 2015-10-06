@@ -10,6 +10,7 @@
 ##  2015-09-28    #34    Adam  Resolve issues with the depend files                                                ##
 ##  2015-09-30    #11    Adam  Link with a user library rather than individual .o files                            ##
 ##  2015-10-06    #65    Adam  Make targets into a subproject location and then copy into the sysroot location     ##
+##  2015-10-06    #66    Adam  Fix broken build                                                                    ##
 ##                                                                                                                 ##
 #####################################################################################################################
 
@@ -61,7 +62,7 @@ $(ZOMBIE-TARGET): $(ZOMBIE-BIN)
 #
 # -- This is the main target for the zombie pogram
 #    ---------------------------------------------
-$(ZOMBIE-BIN): $(ZOMBIE-OBJ) libu.a
+$(ZOMBIE-BIN): $(ZOMBIE-OBJ) $(USR-LIB)
 	echo "LINK  :" $@
 	mkdir -p $(ZOMBIE-PREFIX)/bin
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
