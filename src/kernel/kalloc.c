@@ -32,17 +32,17 @@
 //
 // ------------------------------------------------------------------------------------------------------------------
 //
-//     Date     Tracker  Pgmr  Description
-//  ----------  -------  ----  ------------------------------------------------------------------------------------
-//  2015-10-02    #50    ADCL  There is something corrupting the kmem structures, so the first order of business is
-//                             to add some sanity checks into these management functions.  There are already some
-//                             such checks, but they are not nearly robust enough for troubleshooting, at least not
-//                             in the initial stages.  In addition, I will start to modify and format this source
-//                             to match my personal development standards.
+//     Date     Version  Tracker  Pgmr  Description
+//  ----------  -------  -------  ----  -----------------------------------------------------------------------------
+//  2015-10-02   v0.1      #50    ADCL  There is something corrupting the kmem structures, so the first order of
+//                                      business is to add some sanity checks into these management functions.  There
+//                                      are already some such checks, but they are not nearly robust enough for
+//                                      troubleshooting, at least not in the initial stages.  In addition, I will
+//                                      start to modify and format this source to match my personal development
+//                                      standards.
+//  2015-10-19   v0.3      #77    ADCL  Moved the KALLOC_SANITY define into param.h.
 //
 //===================================================================================================================
-
-#define KALLOC_SANITY
 
 #include "types.h"
 #include "defs.h"

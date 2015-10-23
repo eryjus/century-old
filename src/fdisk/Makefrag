@@ -1,0 +1,106 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the fdisk user program                              ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Tracker  Pgmr  Description                                                                         ##
+##  ----------  -------  ----  ----------------------------------------------------------------------------------  ##
+##  2015-10-22    #68    Adam  Initial version.                                                                    ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+
+#
+# -- Local defines
+#    -------------
+FDISK-PREFIX		:= src/fdisk
+FDISK-OBJ			:= $(notdir $(subst .c,.o,$(wildcard $(FDISK-PREFIX)/*.c)))
+FDISK-OBJ 			:= $(addprefix $(FDISK-PREFIX)/obj/,$(FDISK-OBJ))
+FDISK-BIN			:= $(FDISK-PREFIX)/bin/fdisk
+FDISK-TARGET		:= $(SYSROOT)/usr/bin/fdisk
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS				+= _$(notdir $(FDISK-BIN))
+DEPEND-FILES		+= $(subst .o,.d,$(FDISK-OBJ))
+TARGETS 			+= $(FDISK-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_fdisk: $(FDISK-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make fdisk
+#    -------------------------------------------------------------------------------
+.PHONY: fdisk
+fdisk: $(FDISK-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(FDISK-TARGET): $(FDISK-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
+
+
+#
+# -- This is the main target for the fdisk pogram
+#    --------------------------------------------
+$(FDISK-BIN): $(FDISK-OBJ) $(USR-LIB)
+	echo "LINK  :" $@
+	mkdir -p $(dir $@)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
+
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(FDISK-PREFIX)/obj/%.o: $(FDISK-PREFIX)/%.c
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(FDISK-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(FDISK-PREFIX)/obj/%.d: $(FDISK-PREFIX)/%.c
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(FDISK-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(FDISK-PREFIX)/obj/\1.d $(FDISK-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-fdisk
+clean-fdisk:
+	rm -fR $(FDISK-PREFIX)/obj
+	rm -fR $(FDISK-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-fdisk
+disp-vars-fdisk:
+	echo "FDISK-OBJ      =" $(FDISK-OBJ)
+	echo "FDISK-BIN      =" $(FDISK-BIN)

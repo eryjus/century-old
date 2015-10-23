@@ -1,0 +1,106 @@
+#####################################################################################################################
+##                                                                                                                 ##
+##  Makefrag -- This file contains the rules required to build the dumpe2fs user program                           ##
+##                                                                                                                 ##
+## --------------------------------------------------------------------------------------------------------------- ##
+##                                                                                                                 ##
+##     Date     Version  Tracker  Pgmr  Description                                                                ##
+##  ----------  -------  -------  ----  -------------------------------------------------------------------------- ##
+##  2015-09-27   v0.3      #71    Adam  Initial version                                                            ##
+##                                                                                                                 ##
+#####################################################################################################################
+
+
+#
+# -- Local defines
+#    -------------
+DUMPE2FS-PREFIX		:= src/dumpe2fs
+DUMPE2FS-OBJ		:= $(notdir $(subst .c,.o,$(wildcard $(DUMPE2FS-PREFIX)/*.c)))
+DUMPE2FS-OBJ 		:= $(addprefix $(DUMPE2FS-PREFIX)/obj/,$(DUMPE2FS-OBJ))
+DUMPE2FS-BIN		:= $(DUMPE2FS-PREFIX)/bin/dumpe2fs
+DUMPE2FS-TARGET		:= $(SYSROOT)/usr/bin/dumpe2fs
+
+
+#
+# -- Update the User programs list from the main Makefile
+#    ----------------------------------------------------
+UPROGS				+= _$(notdir $(DUMPE2FS-BIN))
+DEPEND-FILES		+= $(subst .o,.d,$(DUMPE2FS-OBJ))
+TARGETS 			+= $(DUMPE2FS-TARGET)
+
+
+#
+# -- This target is the last of what is required for the $(UPROGS) targets
+#    ---------------------------------------------------------------------
+_dumpe2fs: $(DUMPE2FS-TARGET)
+	echo "COPY  :" $@
+	rm -f $(notdir $@)
+	cp $^ $(notdir $@)
+
+
+#
+# -- This phony target will allow us to make this target simply by typing make dumpe1fs
+#    ----------------------------------------------------------------------------------
+.PHONY: dumpe2fs
+dumpe2fs: $(DUMPE2FS-BIN)
+
+
+#
+# -- This target will copy the program to the proper sysroot folder in preparation for imaging
+#    -----------------------------------------------------------------------------------------
+$(DUMPE2FS-TARGET): $(DUMPE2FS-BIN)
+	echo "COPY  :" $@
+	mkdir -p $(dir $@)
+	rm -f $@
+	cp $^ $@
+
+
+#
+# -- This is the main target for the dumpe2fs pogram
+#    -----------------------------------------------
+$(DUMPE2FS-BIN): $(DUMPE2FS-OBJ) $(USR-LIB)
+	echo "LINK  :" $@
+	mkdir -p $(dir $@)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0x1000 -o $@ $^
+
+	echo "DISASM:" $@
+	$(OBJDUMP) -S $@ > $@.asm
+
+	echo "SYMTAB:" $@
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $@.sym
+
+
+#
+# -- This recipe is used to compile a C source file into an .o object
+#    ----------------------------------------------------------------
+$(DUMPE2FS-PREFIX)/obj/%.o: $(DUMPE2FS-PREFIX)/%.c
+	echo "CC    :" $(notdir $<)
+	mkdir -p $(DUMPE2FS-PREFIX)/obj
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+
+#
+# -- This recipe creates the depend file
+#    -----------------------------------
+$(DUMPE2FS-PREFIX)/obj/%.d: $(DUMPE2FS-PREFIX)/%.c
+	echo "DEPEND:" $(notdir $<)
+	mkdir -p $(DUMPE2FS-PREFIX)/obj
+	$(CC) $(CFLAGS) -MM -MG $< | sed -e 's@^\(.*\)\.o:@$(DUMPE2FS-PREFIX)/obj/\1.d $(DUMPE2FS-PREFIX)/obj/\1.o:@' > $@
+
+
+#
+# -- Clean up
+#    --------
+.PHONY: clean-dumpe2fs
+clean-dumpe2fs:
+	rm -fR $(DUMPE2FS-PREFIX)/obj
+	rm -fR $(DUMPE2FS-PREFIX)/bin
+
+
+#
+# -- Finally, a build target used for debugging this build system
+#    ------------------------------------------------------------
+.PHONY: disp-vars-dumpe2fs
+disp-vars-dumpe2fs:
+	echo "DUMPE2FS-OBJ   =" $(DUMPE2FS-OBJ)
+	echo "DUMPE2FS-BIN   =" $(DUMPE2FS-BIN)

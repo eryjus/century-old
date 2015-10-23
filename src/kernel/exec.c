@@ -7,6 +7,8 @@
 #include "x86.h"
 #include "elf.h"
 
+//  2015-10-21  #91 removed parameter kalloc from the setupkvm() function call.
+
 int
 exec(char *path, char **argv)
 {
@@ -29,7 +31,7 @@ exec(char *path, char **argv)
   if(elf.magic != ELF_MAGIC)
     goto bad;
 
-  if((pgdir = setupkvm(kalloc)) == 0)
+  if((pgdir = setupkvm()) == 0)
     goto bad;
 
   // Load program into memory.
